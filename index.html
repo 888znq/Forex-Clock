@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Forex Sessions — IST</title>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: #000432;
+    font-family: 'Oxanium', sans-serif;
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* --- FULLSCREEN BUTTON --- */
+  .fs-btn {
+    position: absolute;
+    bottom: 15px;
+    right: 15px;
+    width: 32px;
+    height: 32px;
+    background: rgba(0, 0, 0, 0.5);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 4px;
+    color: #ffffff;
+    cursor: pointer;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+  }
+  .fs-btn:hover {
+    background: rgba(255,255,255,0.2);
+    border-color: rgba(255,255,255,0.5);
+  }
+  .fs-btn svg { width: 16px; height: 16px; }
+
+  /* --- WEEKEND OVERLAY --- */
+  @keyframes siren {
+    0%, 100% { box-shadow: inset 0 0 50px rgba(255,0,0,0.1); border-color: rgba(255,0,0,0.3); }
+    50% { box-shadow: inset 0 0 150px rgba(255,0,0,0.4); border-color: rgba(255,0,0,0.8); }
+  }
+  .weekend-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(15, 0, 0, 0.85);
+    z-index: 5000;
+    display: none; /* Toggled by JS */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border: 3px solid #ff0000;
+    backdrop-filter: blur(5px);
+    animation: siren 4s infinite ease-in-out;
+  }
+  .weekend-overlay h1 {
+    font-family: 'Chakra Petch', sans-serif;
+    font-size: clamp(4rem, 10vw, 8rem);
+    color: #ff3333;
+    letter-spacing: 0.15em;
+    text-shadow: 0 0 30px rgba(255,0,0,0.8), 0 0 10px rgba(255,0,0,0.5);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .weekend-overlay p {
+    font-size: clamp(1rem, 2.5vw, 2rem);
+    color: #ffffff;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    opacity: 0.8;
+  }
+
+  /* --- TABLE STYLES --- */
+  .table-wrap {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  table { 
+    width: 100%; 
+    height: 100%; 
+    border-collapse: collapse; 
+    table-layout: fixed; /* Ensures perfect column spacing */
+  }
+  tbody tr { height: 12.5%; border-bottom: 1.5px solid rgba(255,255,255,0.08); transition: outline 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
+  tbody tr:last-child { border-bottom: none; }
+
+  /* FILL BAR */
+  .row-fill {
+    position:absolute;
+    top:0; left:0; height:100%;
+    width:0%;
+    transition:width 1s linear;
+    pointer-events:none;
+    z-index:0;
+  }
+  
+  td { 
+    position: relative; 
+    z-index: 1; 
+    padding: 0 3vw; 
+    transition: all 0.4s; 
+    vertical-align: middle;
+  }
+  
+  /* COLUMN STRUCTURE */
+  .name-cell { 
+    width: 35%;
+    font-family: 'Chakra Petch', sans-serif; 
+    font-weight: 700; 
+    font-size: clamp(1.2rem, 5vh, 4.5rem); 
+    letter-spacing: 0.12em; 
+    text-transform: uppercase; 
+    text-align: left;
+  }
+  
+  .vol-cell {
+    width: 30%;
+    font-family: 'Chakra Petch', sans-serif; 
+    font-weight: 600; 
+    font-size: clamp(1.2rem, 5vh, 4.5rem); 
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .time-cell { 
+    width: 35%;
+    font-family: 'Chakra Petch', sans-serif; 
+    font-weight: 500; 
+    font-size: clamp(1rem, 4.5vh, 4rem); 
+    letter-spacing: 0.08em; 
+    text-align: right; 
+  }
+  
+  tbody tr .name-cell { text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
+  tbody tr.active .name-cell { text-shadow: 0 0 20px rgba(255,255,255,0.5), 0 2px 5px rgba(0,0,0,0.8); }
+</style>
+</head>
+<body>
+
+<div style="display: none;">
+  <div id="clock"></div><div id="clock-day"></div>
+  <div id="pb-price"></div><div id="pb-change"></div>
+  <div id="pb-spread"></div><div id="pb-ticks"></div>
+  <button id="status-btn"><span id="status-txt"></span></button>
+</div>
+
+<div class="table-wrap">
+  <div id="weekend-overlay" class="weekend-overlay">
+    <h1>OFFLINE</h1>
+    <p>Market Closed for Weekend</p>
+  </div>
+
+  <table id="main-table">
+    <tbody id="tbody"></tbody>
+  </table>
+  
+  <button class="fs-btn" onclick="toggleFullScreen()" title="Toggle Fullscreen">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+    </svg>
+  </button>
+</div>
+
+<script>
+function toggleFullScreen() {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
+  else if (document.exitFullscreen) document.exitFullscreen();
+}
+
+// ── DERIV API CONFIG ────────────────
+const API_TOKEN = 'TpVIBWpqet5X8AH';
+const APP_ID    = '1089';
+const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+const SYMBOL    = 'frxEURUSD';
+
+// ── 8-SESSION FORMAT (12:00 AM to 12:00 AM STRICT) ────────────────
+const ROWS = [
+  { id:'ny_offline',name:'New York — Offline', istO: 0,          istC: 4 + 30/60, color:'#5544aa' },
+  { id:'sydney',    name:'Sydney',             istO: 4 + 30/60,  istC: 5.5,       color:'#00aacc' },
+  { id:'sydtok',    name:'Sydney — Tokyo',     istO: 5.5,        istC: 12.5,      color:'#3388cc' },
+  { id:'tokyo',     name:'Tokyo',              istO: 12.5,       istC: 13.5,      color:'#cc3366' },
+  { id:'toklon',    name:'Tokyo — London',     istO: 13.5,       istC: 14.5,      color:'#cc7700' },
+  { id:'london',    name:'London',             istO: 14.5,       istC: 18.5,      color:'#228844' },
+  { id:'lonny',     name:'London — New York',  istO: 18.5,       istC: 22.5,      color:'#cc2222' },
+  { id:'ny_early',  name:'New York',           istO: 22.5,       istC: 24,        color:'#5544aa' } 
+];
+
+let serverTimeOffset = 0; 
+let sessionStats = {}; // Stores { open: price, close: price } for each row
+
+// ── TIME HELPERS ─────────────────────────
+function getIST() {
+  const serverNow = new Date(Date.now() + serverTimeOffset);
+  return new Date(serverNow.getTime() + serverNow.getTimezoneOffset()*60000 + 5.5*3600000);
+}
+
+function pad(n) { return String(Math.floor(n)).padStart(2,'0'); }
+function istFrac(ist) { return ist.getHours() + ist.getMinutes()/60 + ist.getSeconds()/3600; }
+
+function toAMPM(frac24) {
+  if (frac24 === 24 || frac24 === 0) return "12:00 AM";
+  const h24 = Math.floor(frac24) % 24;
+  let m = Math.round((frac24 % 1) * 60);
+  let finalH24 = h24;
+  if (m === 60) { m = 0; finalH24 = (finalH24 + 1) % 24; }
+  const ampm = finalH24 >= 12 ? 'PM' : 'AM';
+  const h12 = finalH24 % 12 || 12;
+  return pad(h12) + ':' + pad(m) + ' ' + ampm;
+}
+
+// Get the exact UTC Epoch boundary for 12:00 AM IST today
+function getTodayMidnightEpochUTC() {
+  const istNow = getIST();
+  const istMidnight = new Date(istNow);
+  istMidnight.setHours(0, 0, 0, 0); // Reset to 12:00 AM IST
+  return Math.floor((istMidnight.getTime() - (5.5 * 3600 * 1000)) / 1000);
+}
+
+// ── BUILD TABLE ─────────────────────
+function buildTable() {
+  const tbody = document.getElementById('tbody');
+  ROWS.forEach(row => {
+    const tr = document.createElement('tr');
+    tr.id = 'row-' + row.id;
+    tr.innerHTML = `
+      <div class="row-fill" id="fill-${row.id}"></div>
+      <td class="name-cell" style="color:${row.color}">${row.name}</td>
+      <td class="vol-cell" id="vol-${row.id}"><span style="opacity:0.2">---</span></td>
+      <td class="time-cell">--:-- AM — --:-- AM</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── UI UPDATES ─────────────────────────
+function updateVolatilityUI() {
+  ROWS.forEach(row => {
+    const el = document.getElementById('vol-' + row.id);
+    if (!el) return;
+
+    if (sessionStats[row.id] && sessionStats[row.id].open) {
+      let open = sessionStats[row.id].open;
+      let close = sessionStats[row.id].close;
+      
+      // Calculate Pip difference (EURUSD = 5 decimals, multiply by 10000)
+      let diff = (close - open) * 10000; 
+      
+      let color = '#ffffff';
+      let symbol = '▬';
+      let sign = '';
+      
+      if (diff > 0.1) {
+          color = '#1cc658'; // Bright Green for Bullish
+          symbol = '▲';
+          sign = '+';
+      } else if (diff < -0.1) {
+          color = '#ff3333'; // Bright Red for Bearish
+          symbol = '▼';
+      }
+
+      // Add text-shadow to make it pop like a neon sign
+      el.innerHTML = `
+        <span style="color:${color}; text-shadow: 0 0 10px ${color}40, 0 2px 4px rgba(0,0,0,0.8);">
+          ${sign}${diff.toFixed(1)} <span style="font-size:0.7em">${symbol}</span>
+        </span>`;
+    } else {
+      el.innerHTML = `<span style="opacity:0.2">WAITING</span>`;
+    }
+  });
+}
+
+function updateTable() {
+  const ist = getIST();
+  const frac24 = istFrac(ist);
+  const dayOfWeek = ist.getDay(); 
+
+  let isWeekend = false;
+  if (dayOfWeek === 6 && frac24 >= (2 + 25/60)) isWeekend = true; 
+  if (dayOfWeek === 0) isWeekend = true; 
+  if (dayOfWeek === 1 && frac24 < (4 + 30/60)) isWeekend = true; 
+
+  const overlay = document.getElementById('weekend-overlay');
+  overlay.style.display = isWeekend ? 'flex' : 'none';
+
+  ROWS.forEach(row => {
+    const tr = document.getElementById('row-' + row.id);
+    const fill = document.getElementById('fill-' + row.id);
+    if (!tr || !fill) return;
+
+    let currentIstC = row.istC;
+    if (row.id === 'ny_offline' && dayOfWeek === 6) {
+        currentIstC = 2 + 25/60; 
+    }
+
+    const timeCell = tr.querySelector('.time-cell');
+    if (timeCell) {
+        timeCell.innerHTML = `${toAMPM(row.istO)} — ${toAMPM(currentIstC)}`;
+    }
+
+    let astart = row.istO;
+    let aend = currentIstC;
+
+    const active = (frac24 >= astart && frac24 < aend) && !isWeekend;
+    tr.classList.toggle('active', active);
+    tr.classList.toggle('faded', !active);
+
+    let progress = 0;
+    if (frac24 >= aend) progress = 100;
+    else if (frac24 >= astart) progress = ((frac24 - astart) / (aend - astart)) * 100;
+
+    const completed = progress === 100;
+    fill.style.width = progress.toFixed(3) + '%';
+    fill.style.background = (active || completed) ? row.color : 'transparent';
+    
+    tr.style.background = '#000432';
+    tr.querySelectorAll('td').forEach(td => {
+      td.style.color = '#ffffff';
+    });
+  });
+  
+  // Safely trigger a UI refresh for volatility to ensure no ghost states
+  updateVolatilityUI();
+}
+
+// ── WEBSOCKET & DATA ENGINE ───────────────────────
+let ws = null;
+let reconnectTimer = null;
+
+function connect() {
+  if (ws) { ws.close(); ws = null; }
+  ws = new WebSocket(WS_URL);
+  
+  ws.onopen = () => { 
+    ws.send(JSON.stringify({ authorize: API_TOKEN })); 
+  };
+  
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+    
+    // 1. Authorization Success -> Subscribe to live ticks AND request historical candles
+    if (msg.msg_type === 'authorize' && !msg.error) {
+      ws.send(JSON.stringify({ time: 1 }));
+      ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+      
+      // Fetch the last 24 hours of 1-min candles to backfill completed rows
+      ws.send(JSON.stringify({
+        ticks_history: SYMBOL,
+        end: "latest",
+        count: 1440, 
+        style: "candles",
+        granularity: 60
+      }));
+    }
+    
+    // 2. Server Time Sync
+    if (msg.msg_type === 'time') {
+      serverTimeOffset = (msg.time * 1000) - Date.now();
+      setTimeout(() => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ time: 1 })); }, 300000);
+    }
+    
+    // 3. Process Historical Candles (Fills in data for sessions that already passed today)
+    if (msg.msg_type === 'candles' && msg.candles) {
+      const epochMidnightUTC = getTodayMidnightEpochUTC();
+      
+      ROWS.forEach(row => {
+        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
+        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
+        
+        let rowCandles = msg.candles.filter(c => c.epoch >= sEpoch && c.epoch < eEpoch);
+        if (rowCandles.length > 0) {
+           sessionStats[row.id] = { 
+               open: rowCandles[0].open, 
+               close: rowCandles[rowCandles.length-1].close 
+           };
+        }
+      });
+      updateVolatilityUI();
+    }
+    
+    // 4. Process Live Ticks (Updates the actively running session in real-time)
+    if (msg.msg_type === 'tick' && msg.tick) {
+      serverTimeOffset = (msg.tick.epoch * 1000) - Date.now();
+      
+      let currentPrice = msg.tick.quote;
+      let tickEpoch = msg.tick.epoch;
+      const epochMidnightUTC = getTodayMidnightEpochUTC();
+      
+      ROWS.forEach(row => {
+        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
+        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
+        
+        // If the live tick falls within this row's timeframe
+        if (tickEpoch >= sEpoch && tickEpoch < eEpoch) {
+           if (!sessionStats[row.id]) {
+               sessionStats[row.id] = { open: currentPrice, close: currentPrice };
+           } else {
+               sessionStats[row.id].close = currentPrice;
+           }
+        }
+      });
+      updateVolatilityUI();
+    }
+  };
+  
+  ws.onclose = () => { 
+    ws = null; 
+    clearTimeout(reconnectTimer); 
+    reconnectTimer = setTimeout(connect, 4000); 
+  };
+}
+
+// ── INIT ────────────────────────────
+buildTable();
+updateTable();
+setInterval(updateTable, 1000);
+connect();
+</script>
+</body>
+</html>
