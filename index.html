@@ -15,14 +15,12 @@
   body {
     background: #000432;
     font-family: 'Oxanium', sans-serif;
-    /* Edge-to-edge dynamic setup */
     width: 100%;
-    height: 100vh; /* Fallback for older browsers */
-    height: 100dvh; /* Dynamic viewport height for modern mobile browsers */
+    height: 100vh;
+    height: 100dvh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    /* Thinner white border at walls */
     border: 2px solid #ffffff;
   }
 
@@ -60,7 +58,7 @@
     top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(15, 0, 0, 0.85);
     z-index: 5000;
-    display: none; /* Toggled by JS */
+    display: none; 
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -99,7 +97,7 @@
     width: 100%; 
     height: 100%; 
     border-collapse: collapse; 
-    table-layout: fixed; /* Ensures perfect column spacing */
+    table-layout: fixed; 
   }
   tbody tr { height: 12.5%; border-bottom: 1.5px solid rgba(255,255,255,0.08); transition: outline 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
   tbody tr:last-child { border-bottom: none; }
@@ -114,40 +112,40 @@
     z-index:0;
   }
   
+  /* UNIFIED TEXT SCALING FOR ALL COLUMNS */
   td { 
     position: relative; 
     z-index: 1; 
-    padding: 0 3vw; 
+    padding: 0 2vw; /* Slightly reduced padding to give text more room */
     transition: all 0.4s; 
     vertical-align: middle;
+    font-size: clamp(0.7rem, 2.5vw, 3.8rem); /* EXACT SAME FONT SIZE FOR EVERYTHING */
+    white-space: nowrap; /* Forces text to stay on a single line */
   }
   
   /* COLUMN STRUCTURE */
   .name-cell { 
-    width: 35%;
+    width: 40%; /* Increased to give long names more room */
     font-family: 'Chakra Petch', sans-serif; 
     font-weight: 700; 
-    font-size: clamp(1.2rem, 5vh, 4.5rem); 
-    letter-spacing: 0.12em; 
+    letter-spacing: 0.08em; 
     text-transform: uppercase; 
     text-align: left;
   }
   
   .vol-cell {
-    width: 30%;
+    width: 20%; /* Shrunk because volatility numbers are very short */
     font-family: 'Chakra Petch', sans-serif; 
     font-weight: 600; 
-    font-size: clamp(1.2rem, 5vh, 4.5rem); 
     text-align: center;
     letter-spacing: 0.05em;
   }
 
   .time-cell { 
-    width: 35%;
+    width: 40%; /* Increased to match name cell */
     font-family: 'Chakra Petch', sans-serif; 
     font-weight: 500; 
-    font-size: clamp(1rem, 4.5vh, 4rem); 
-    letter-spacing: 0.08em; 
+    letter-spacing: 0.05em; 
     text-align: right; 
   }
   
@@ -194,21 +192,21 @@ const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
 const SYMBOL    = 'frxEURUSD';
 
 // ── 8-SESSION FORMAT (12:00 AM to 12:00 AM STRICT) ────────────────
+// NEW HIGH-CONTRAST DISTINCT COLOR PALETTE
 const ROWS = [
-  { id:'ny_offline',name:'New York — Offline', istO: 0,          istC: 4 + 30/60, color:'#5544aa' },
-  { id:'sydney',    name:'Sydney',             istO: 4 + 30/60,  istC: 5.5,       color:'#00aacc' },
-  { id:'sydtok',    name:'Sydney — Tokyo',     istO: 5.5,        istC: 12.5,      color:'#3388cc' },
-  { id:'tokyo',     name:'Tokyo',              istO: 12.5,       istC: 13.5,      color:'#cc3366' },
-  { id:'toklon',    name:'Tokyo — London',     istO: 13.5,       istC: 14.5,      color:'#cc7700' },
-  { id:'london',    name:'London',             istO: 14.5,       istC: 18.5,      color:'#228844' },
-  { id:'lonny',     name:'London — New York',  istO: 18.5,       istC: 22.5,      color:'#cc2222' },
-  { id:'ny_early',  name:'New York',           istO: 22.5,       istC: 24,        color:'#5544aa' } 
+  { id:'ny_offline',name:'New York — Offline', istO: 0,         istC: 4 + 30/60, color:'#7A28CB' }, // Deep Purple
+  { id:'sydney',    name:'Sydney',             istO: 4 + 30/60, istC: 5.5,       color:'#00B4D8' }, // Vibrant Light Blue
+  { id:'sydtok',    name:'Sydney — Tokyo',     istO: 5.5,       istC: 12.5,      color:'#FFB703' }, // Bright Yellow/Gold
+  { id:'tokyo',     name:'Tokyo',              istO: 12.5,      istC: 13.5,      color:'#EF233C' }, // Vibrant Red
+  { id:'toklon',    name:'Tokyo — London',     istO: 13.5,      istC: 14.5,      color:'#8338EC' }, // Vibrant Violet
+  { id:'london',    name:'London',             istO: 14.5,      istC: 18.5,      color:'#06D6A0' }, // Vibrant Mint/Teal
+  { id:'lonny',     name:'London — New York',  istO: 18.5,      istC: 22.5,      color:'#F15BB5' }, // Vibrant Pink
+  { id:'ny_early',  name:'New York',           istO: 22.5,      istC: 24,        color:'#FB5607' }  // Vibrant Orange
 ];
 
 let serverTimeOffset = 0; 
-let sessionStats = {}; // Stores { open: price, close: price } for each row
+let sessionStats = {}; 
 
-// ── TIME HELPERS ─────────────────────────
 function getIST() {
   const serverNow = new Date(Date.now() + serverTimeOffset);
   return new Date(serverNow.getTime() + serverNow.getTimezoneOffset()*60000 + 5.5*3600000);
@@ -228,15 +226,13 @@ function toAMPM(frac24) {
   return pad(h12) + ':' + pad(m) + ' ' + ampm;
 }
 
-// Get the exact UTC Epoch boundary for 12:00 AM IST today
 function getTodayMidnightEpochUTC() {
   const istNow = getIST();
   const istMidnight = new Date(istNow);
-  istMidnight.setHours(0, 0, 0, 0); // Reset to 12:00 AM IST
+  istMidnight.setHours(0, 0, 0, 0); 
   return Math.floor((istMidnight.getTime() - (5.5 * 3600 * 1000)) / 1000);
 }
 
-// ── BUILD TABLE ─────────────────────
 function buildTable() {
   const tbody = document.getElementById('tbody');
   ROWS.forEach(row => {
@@ -251,7 +247,6 @@ function buildTable() {
   });
 }
 
-// ── UI UPDATES ─────────────────────────
 function updateVolatilityUI() {
   ROWS.forEach(row => {
     const el = document.getElementById('vol-' + row.id);
@@ -261,7 +256,6 @@ function updateVolatilityUI() {
       let open = sessionStats[row.id].open;
       let close = sessionStats[row.id].close;
       
-      // Calculate Pip difference (EURUSD = 5 decimals, multiply by 10000)
       let diff = (close - open) * 10000; 
       
       let color = '#ffffff';
@@ -269,15 +263,14 @@ function updateVolatilityUI() {
       let sign = '';
       
       if (diff > 0.1) {
-          color = '#1cc658'; // Bright Green for Bullish
+          color = '#1cc658'; 
           symbol = '▲';
           sign = '+';
       } else if (diff < -0.1) {
-          color = '#ff3333'; // Bright Red for Bearish
+          color = '#ff3333'; 
           symbol = '▼';
       }
 
-      // Add text-shadow to make it pop like a neon sign
       el.innerHTML = `
         <span style="color:${color}; text-shadow: 0 0 10px ${color}40, 0 2px 4px rgba(0,0,0,0.8);">
           ${sign}${diff.toFixed(1)} <span style="font-size:0.7em">${symbol}</span>
@@ -337,11 +330,9 @@ function updateTable() {
     });
   });
   
-  // Safely trigger a UI refresh for volatility to ensure no ghost states
   updateVolatilityUI();
 }
 
-// ── WEBSOCKET & DATA ENGINE ───────────────────────
 let ws = null;
 let reconnectTimer = null;
 
@@ -356,12 +347,10 @@ function connect() {
   ws.onmessage = (evt) => {
     const msg = JSON.parse(evt.data);
     
-    // 1. Authorization Success -> Subscribe to live ticks AND request historical candles
     if (msg.msg_type === 'authorize' && !msg.error) {
       ws.send(JSON.stringify({ time: 1 }));
       ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
       
-      // Fetch the last 24 hours of 1-min candles to backfill completed rows
       ws.send(JSON.stringify({
         ticks_history: SYMBOL,
         end: "latest",
@@ -371,13 +360,11 @@ function connect() {
       }));
     }
     
-    // 2. Server Time Sync
     if (msg.msg_type === 'time') {
       serverTimeOffset = (msg.time * 1000) - Date.now();
       setTimeout(() => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ time: 1 })); }, 300000);
     }
     
-    // 3. Process Historical Candles (Fills in data for sessions that already passed today)
     if (msg.msg_type === 'candles' && msg.candles) {
       const epochMidnightUTC = getTodayMidnightEpochUTC();
       
@@ -396,7 +383,6 @@ function connect() {
       updateVolatilityUI();
     }
     
-    // 4. Process Live Ticks (Updates the actively running session in real-time)
     if (msg.msg_type === 'tick' && msg.tick) {
       serverTimeOffset = (msg.tick.epoch * 1000) - Date.now();
       
@@ -408,7 +394,6 @@ function connect() {
         let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
         let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
         
-        // If the live tick falls within this row's timeframe
         if (tickEpoch >= sEpoch && tickEpoch < eEpoch) {
            if (!sessionStats[row.id]) {
                sessionStats[row.id] = { open: currentPrice, close: currentPrice };
@@ -428,7 +413,6 @@ function connect() {
   };
 }
 
-// ── INIT ────────────────────────────
 buildTable();
 updateTable();
 setInterval(updateTable, 1000);
