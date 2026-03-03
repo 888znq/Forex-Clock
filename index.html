@@ -1,422 +1,533 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Forex Sessions — IST</title>
-<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&family=Oxanium:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-  * { 
-    margin: 0; 
-    padding: 0; 
-    box-sizing: border-box; 
-  }
-  
-  body {
-    background: #000432;
-    font-family: 'Oxanium', sans-serif;
-    width: 100%;
-    height: 100vh;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    border: 2px solid #ffffff;
-  }
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forex Session & Volatility Clock</title>
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@600;700&display=swap');
 
-  /* --- FULLSCREEN BUTTON --- */
-  .fs-btn {
-    position: absolute;
-    bottom: 15px;
-    right: 15px;
-    width: 32px;
-    height: 32px;
-    background: rgba(0, 0, 0, 0.5);
-    border: 1px solid rgba(255,255,255,0.2);
-    border-radius: 4px;
-    color: #ffffff;
-    cursor: pointer;
-    z-index: 9999;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s ease;
-  }
-  .fs-btn:hover {
-    background: rgba(255,255,255,0.2);
-    border-color: rgba(255,255,255,0.5);
-  }
-  .fs-btn svg { width: 16px; height: 16px; }
+        :root {
+            /* Dynamic variables controlled by JS */
+            --bg-color: #111111; /* Unified color for body and clock face */
+            --element-color: #ffffff; /* Elements are crisp white against the dark backgrounds */
+        }
 
-  /* --- WEEKEND OVERLAY --- */
-  @keyframes siren {
-    0%, 100% { box-shadow: inset 0 0 50px rgba(255,0,0,0.1); border-color: rgba(255,0,0,0.3); }
-    50% { box-shadow: inset 0 0 150px rgba(255,0,0,0.4); border-color: rgba(255,0,0,0.8); }
-  }
-  .weekend-overlay {
-    position: absolute;
-    top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(15, 0, 0, 0.85);
-    z-index: 5000;
-    display: none; 
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border: 3px solid #ff0000;
-    backdrop-filter: blur(5px);
-    animation: siren 4s infinite ease-in-out;
-  }
-  .weekend-overlay h1 {
-    font-family: 'Chakra Petch', sans-serif;
-    font-size: clamp(4rem, 10vw, 8rem);
-    color: #ff3333;
-    letter-spacing: 0.15em;
-    text-shadow: 0 0 30px rgba(255,0,0,0.8), 0 0 10px rgba(255,0,0,0.5);
-    margin-bottom: 10px;
-    text-transform: uppercase;
-  }
-  .weekend-overlay p {
-    font-size: clamp(1rem, 2.5vw, 2rem);
-    color: #ffffff;
-    letter-spacing: 0.3em;
-    text-transform: uppercase;
-    opacity: 0.8;
-  }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-  /* --- TABLE STYLES --- */
-  .table-wrap {
-    width: 100%;
-    height: 100%;
-    flex: 1;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-  }
-  table { 
-    width: 100%; 
-    height: 100%; 
-    border-collapse: collapse; 
-    table-layout: fixed; 
-  }
-  tbody tr { height: 12.5%; border-bottom: 1.5px solid rgba(255,255,255,0.08); transition: outline 0.2s, box-shadow 0.2s; position: relative; overflow: hidden; }
-  tbody tr:last-child { border-bottom: none; }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            /* Entire screen background syncs with the market */
+            background-color: var(--bg-color); 
+            overflow: hidden;
+            font-family: 'Chakra Petch', sans-serif;
+            transition: background-color 0.5s ease;
+        }
 
-  /* FILL BAR */
-  .row-fill {
-    position:absolute;
-    top:0; left:0; height:100%;
-    width:0%;
-    transition:width 1s linear;
-    pointer-events:none;
-    z-index:0;
-  }
-  
-  /* UNIFIED TEXT SCALING FOR ALL COLUMNS */
-  td { 
-    position: relative; 
-    z-index: 1; 
-    padding: 0 2vw; /* Slightly reduced padding to give text more room */
-    transition: all 0.4s; 
-    vertical-align: middle;
-    font-size: clamp(0.7rem, 2.5vw, 3.8rem); /* EXACT SAME FONT SIZE FOR EVERYTHING */
-    white-space: nowrap; /* Forces text to stay on a single line */
-  }
-  
-  /* COLUMN STRUCTURE */
-  .name-cell { 
-    width: 40%; /* Increased to give long names more room */
-    font-family: 'Chakra Petch', sans-serif; 
-    font-weight: 700; 
-    letter-spacing: 0.08em; 
-    text-transform: uppercase; 
-    text-align: left;
-  }
-  
-  .vol-cell {
-    width: 20%; /* Shrunk because volatility numbers are very short */
-    font-family: 'Chakra Petch', sans-serif; 
-    font-weight: 600; 
-    text-align: center;
-    letter-spacing: 0.05em;
-  }
+        /* --- Main Clock Bezel and Face --- */
+        .clock {
+            width: 85vmin; 
+            height: 85vmin;
+            border-radius: 50%;
+            /* Clock face syncs perfectly with outer background */
+            background-color: var(--bg-color); 
+            position: relative;
+            
+            /* Bright white ring to separate the face from the background */
+            border: 2.5vmin solid var(--element-color); 
+            
+            /* Deep inner and outer shadows for 3D depth */
+            box-shadow: 0 4vmin 8vmin rgba(0,0,0,0.8), inset 0 0 6vmin rgba(0,0,0,0.4);
+            transition: background-color 0.5s ease, border-color 0.5s ease; 
+        }
 
-  .time-cell { 
-    width: 40%; /* Increased to match name cell */
-    font-family: 'Chakra Petch', sans-serif; 
-    font-weight: 500; 
-    letter-spacing: 0.05em; 
-    text-align: right; 
-  }
-  
-  tbody tr .name-cell { text-shadow: 0 2px 4px rgba(0,0,0,0.6); }
-  tbody tr.active .name-cell { text-shadow: 0 0 20px rgba(255,255,255,0.5), 0 2px 5px rgba(0,0,0,0.8); }
-</style>
+        /* --- Session Name Text --- */
+        .brand-text {
+            position: absolute;
+            top: 28%; /* Placed exactly in the upper void below the 12 */
+            left: 50%;
+            transform: translateX(-50%);
+            font-family: 'Audiowide', sans-serif;
+            font-weight: 700;
+            font-size: 3.5vmin; /* Perfect size to prevent side overlap */
+            letter-spacing: 0.2vmin;
+            color: var(--element-color); 
+            background: transparent;
+            z-index: 2;
+            text-align: center;
+            white-space: nowrap;
+            transition: color 0.5s ease;
+            text-shadow: 0 1vmin 2vmin rgba(0,0,0,0.5); 
+        }
+
+        /* --- Movement Text --- */
+        .movement-display {
+            position: absolute;
+            bottom: 28%; /* Mirrored position to balance the session text */
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            z-index: 2;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 3.5vmin; /* Matched size to session text */
+            font-weight: 700;
+            letter-spacing: 0.1vmin;
+            color: var(--element-color);
+            background: transparent;
+            transition: color 0.5s ease;
+            text-shadow: 0 1vmin 2vmin rgba(0,0,0,0.5);
+        }
+
+        /* --- Minute and Hour Markers --- */
+        .marker-container {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            z-index: 3;
+        }
+
+        .tick-marker {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0.4vmin;
+            height: 1.6vmin;
+            background-color: var(--element-color);
+            transition: background-color 0.5s ease;
+        }
+
+        .triangle-marker {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2.2vmin;
+            height: 2vmin;
+            background-color: var(--element-color);
+            clip-path: polygon(0 0, 100% 0, 50% 100%);
+            transition: background-color 0.5s ease;
+        }
+
+        /* --- Clock Numbers --- */
+        .number {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            font-family: 'Audiowide', sans-serif;
+            font-weight: 700;
+            font-size: 10.5vmin; 
+            color: var(--element-color);
+            line-height: 1;
+            z-index: 4; 
+            transition: color 0.5s ease;
+            text-shadow: 0 0.5vmin 1vmin rgba(0,0,0,0.2);
+        }
+
+        /* --- Hands Configuration --- */
+        .hand-wrapper {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+        }
+
+        /* Hour Hand */
+        .hour-hand {
+            position: absolute;
+            left: 50%;
+            bottom: 50%; 
+            transform: translateX(-50%);
+            height: 25%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .hour-hand .arrow {
+            width: 0; height: 0;
+            border-left: 1.6vmin solid transparent;
+            border-right: 1.6vmin solid transparent;
+            border-bottom: 3.5vmin solid var(--element-color);
+            transition: border-bottom-color 0.5s ease;
+        }
+        .hour-hand .shaft {
+            width: 1.5vmin;
+            height: calc(100% - 3.5vmin);
+            background-color: var(--element-color);
+            transition: background-color 0.5s ease;
+        }
+        .hour-tail {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%);
+            width: 2.3vmin;
+            height: 3.5vmin;
+            background-color: var(--element-color);
+            transition: background-color 0.5s ease;
+        }
+
+        /* Minute Hand */
+        .minute-hand {
+            position: absolute;
+            left: 50%;
+            bottom: 50%;
+            transform: translateX(-50%);
+            height: 40%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .minute-hand .arrow {
+            width: 0; height: 0;
+            border-left: 1.4vmin solid transparent;
+            border-right: 1.4vmin solid transparent;
+            border-bottom: 3.8vmin solid var(--element-color);
+            transition: border-bottom-color 0.5s ease;
+        }
+        .minute-hand .shaft {
+            width: 1.3vmin;
+            height: calc(100% - 3.8vmin);
+            background-color: var(--element-color);
+            transition: background-color 0.5s ease;
+        }
+        .minute-tail {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%);
+            width: 2vmin;
+            height: 3.5vmin;
+            background-color: var(--element-color);
+            transition: background-color 0.5s ease;
+        }
+
+        /* Second Hand */
+        .second-hand {
+            position: absolute;
+            left: 50%;
+            bottom: 50%;
+            transform: translateX(-50%);
+            width: 0.35vmin;
+            height: 44%;
+            background-color: var(--element-color); 
+            transition: background-color 0.5s ease;
+        }
+        .second-tail {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translateX(-50%);
+            width: 0.35vmin;
+            height: 12%;
+            background-color: var(--element-color); 
+            transition: background-color 0.5s ease;
+        }
+
+        /* --- Center Pivot Dot --- */
+        .center-dot {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4vmin;
+            height: 4vmin;
+            background-color: var(--element-color);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 15;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transition: background-color 0.5s ease;
+            box-shadow: 0 0 1vmin rgba(0,0,0,0.5);
+        }
+        .center-dot::after {
+            content: '';
+            width: 1.4vmin;
+            height: 1.4vmin;
+            background-color: var(--bg-color); /* Inner dot syncs with background */
+            border-radius: 50%;
+            transition: background-color 0.5s ease;
+        }
+
+    </style>
 </head>
 <body>
 
-<div style="display: none;">
-  <div id="clock"></div><div id="clock-day"></div>
-  <div id="pb-price"></div><div id="pb-change"></div>
-  <div id="pb-spread"></div><div id="pb-ticks"></div>
-  <button id="status-btn"><span id="status-txt"></span></button>
-</div>
+    <div class="clock" id="clock-face">
+        <div class="brand-text" id="session-name">SYNCING...</div>
+        <div class="movement-display" id="session-movement">
+            <span style="opacity:0.4; font-size: 3.5vmin;">WAITING</span>
+        </div>
+        <div class="hand-wrapper" id="hour-wrapper">
+            <div class="hour-hand"><div class="arrow"></div><div class="shaft"></div></div>
+            <div class="hour-tail"></div>
+        </div>
+        <div class="hand-wrapper" id="minute-wrapper">
+            <div class="minute-hand"><div class="arrow"></div><div class="shaft"></div></div>
+            <div class="minute-tail"></div>
+        </div>
+        <div class="hand-wrapper" id="second-wrapper">
+            <div class="second-hand"></div>
+            <div class="second-tail"></div>
+        </div>
+        <div class="center-dot"></div>
+    </div>
 
-<div class="table-wrap">
-  <div id="weekend-overlay" class="weekend-overlay">
-    <h1>OFFLINE</h1>
-    <p>Market Closed for Weekend</p>
-  </div>
+    <script>
+        // --- 1. CLOCK UI GENERATION ---
+        const clockFace = document.getElementById('clock-face');
 
-  <table id="main-table">
-    <tbody id="tbody"></tbody>
-  </table>
-  
-  <button class="fs-btn" onclick="toggleFullScreen()" title="Toggle Fullscreen">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
-    </svg>
-  </button>
-</div>
+        for (let i = 0; i < 60; i++) {
+            const markerContainer = document.createElement('div');
+            markerContainer.className = 'marker-container';
+            markerContainer.style.transform = `rotate(${i * 6}deg)`; 
 
-<script>
-function toggleFullScreen() {
-  if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(()=>{});
-  else if (document.exitFullscreen) document.exitFullscreen();
-}
+            const marker = document.createElement('div');
+            if (i % 5 === 0) { marker.className = 'triangle-marker'; } 
+            else { marker.className = 'tick-marker'; }
 
-// ── DERIV API CONFIG ────────────────
-const API_TOKEN = 'TpVIBWpqet5X8AH';
-const APP_ID    = '1089';
-const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-const SYMBOL    = 'frxEURUSD';
-
-// ── 8-SESSION FORMAT (12:00 AM to 12:00 AM STRICT) ────────────────
-// NEW HIGH-CONTRAST DISTINCT COLOR PALETTE
-const ROWS = [
-  { id:'ny_offline',name:'New York — Offline', istO: 0,         istC: 4 + 30/60, color:'#7A28CB' }, // Deep Purple
-  { id:'sydney',    name:'Sydney',             istO: 4 + 30/60, istC: 5.5,       color:'#00B4D8' }, // Vibrant Light Blue
-  { id:'sydtok',    name:'Sydney — Tokyo',     istO: 5.5,       istC: 12.5,      color:'#FFB703' }, // Bright Yellow/Gold
-  { id:'tokyo',     name:'Tokyo',              istO: 12.5,      istC: 13.5,      color:'#EF233C' }, // Vibrant Red
-  { id:'toklon',    name:'Tokyo — London',     istO: 13.5,      istC: 14.5,      color:'#8338EC' }, // Vibrant Violet
-  { id:'london',    name:'London',             istO: 14.5,      istC: 18.5,      color:'#06D6A0' }, // Vibrant Mint/Teal
-  { id:'lonny',     name:'London — New York',  istO: 18.5,      istC: 22.5,      color:'#F15BB5' }, // Vibrant Pink
-  { id:'ny_early',  name:'New York',           istO: 22.5,      istC: 24,        color:'#FB5607' }  // Vibrant Orange
-];
-
-let serverTimeOffset = 0; 
-let sessionStats = {}; 
-
-function getIST() {
-  const serverNow = new Date(Date.now() + serverTimeOffset);
-  return new Date(serverNow.getTime() + serverNow.getTimezoneOffset()*60000 + 5.5*3600000);
-}
-
-function pad(n) { return String(Math.floor(n)).padStart(2,'0'); }
-function istFrac(ist) { return ist.getHours() + ist.getMinutes()/60 + ist.getSeconds()/3600; }
-
-function toAMPM(frac24) {
-  if (frac24 === 24 || frac24 === 0) return "12:00 AM";
-  const h24 = Math.floor(frac24) % 24;
-  let m = Math.round((frac24 % 1) * 60);
-  let finalH24 = h24;
-  if (m === 60) { m = 0; finalH24 = (finalH24 + 1) % 24; }
-  const ampm = finalH24 >= 12 ? 'PM' : 'AM';
-  const h12 = finalH24 % 12 || 12;
-  return pad(h12) + ':' + pad(m) + ' ' + ampm;
-}
-
-function getTodayMidnightEpochUTC() {
-  const istNow = getIST();
-  const istMidnight = new Date(istNow);
-  istMidnight.setHours(0, 0, 0, 0); 
-  return Math.floor((istMidnight.getTime() - (5.5 * 3600 * 1000)) / 1000);
-}
-
-function buildTable() {
-  const tbody = document.getElementById('tbody');
-  ROWS.forEach(row => {
-    const tr = document.createElement('tr');
-    tr.id = 'row-' + row.id;
-    tr.innerHTML = `
-      <div class="row-fill" id="fill-${row.id}"></div>
-      <td class="name-cell" style="color:${row.color}">${row.name}</td>
-      <td class="vol-cell" id="vol-${row.id}"><span style="opacity:0.2">---</span></td>
-      <td class="time-cell">--:-- AM — --:-- AM</td>`;
-    tbody.appendChild(tr);
-  });
-}
-
-function updateVolatilityUI() {
-  ROWS.forEach(row => {
-    const el = document.getElementById('vol-' + row.id);
-    if (!el) return;
-
-    if (sessionStats[row.id] && sessionStats[row.id].open) {
-      let open = sessionStats[row.id].open;
-      let close = sessionStats[row.id].close;
-      
-      let diff = (close - open) * 10000; 
-      
-      let color = '#ffffff';
-      let symbol = '▬';
-      let sign = '';
-      
-      if (diff > 0.1) {
-          color = '#1cc658'; 
-          symbol = '▲';
-          sign = '+';
-      } else if (diff < -0.1) {
-          color = '#ff3333'; 
-          symbol = '▼';
-      }
-
-      el.innerHTML = `
-        <span style="color:${color}; text-shadow: 0 0 10px ${color}40, 0 2px 4px rgba(0,0,0,0.8);">
-          ${sign}${diff.toFixed(1)} <span style="font-size:0.7em">${symbol}</span>
-        </span>`;
-    } else {
-      el.innerHTML = `<span style="opacity:0.2">WAITING</span>`;
-    }
-  });
-}
-
-function updateTable() {
-  const ist = getIST();
-  const frac24 = istFrac(ist);
-  const dayOfWeek = ist.getDay(); 
-
-  let isWeekend = false;
-  if (dayOfWeek === 6 && frac24 >= (2 + 25/60)) isWeekend = true; 
-  if (dayOfWeek === 0) isWeekend = true; 
-  if (dayOfWeek === 1 && frac24 < (4 + 30/60)) isWeekend = true; 
-
-  const overlay = document.getElementById('weekend-overlay');
-  overlay.style.display = isWeekend ? 'flex' : 'none';
-
-  ROWS.forEach(row => {
-    const tr = document.getElementById('row-' + row.id);
-    const fill = document.getElementById('fill-' + row.id);
-    if (!tr || !fill) return;
-
-    let currentIstC = row.istC;
-    if (row.id === 'ny_offline' && dayOfWeek === 6) {
-        currentIstC = 2 + 25/60; 
-    }
-
-    const timeCell = tr.querySelector('.time-cell');
-    if (timeCell) {
-        timeCell.innerHTML = `${toAMPM(row.istO)} — ${toAMPM(currentIstC)}`;
-    }
-
-    let astart = row.istO;
-    let aend = currentIstC;
-
-    const active = (frac24 >= astart && frac24 < aend) && !isWeekend;
-    tr.classList.toggle('active', active);
-    tr.classList.toggle('faded', !active);
-
-    let progress = 0;
-    if (frac24 >= aend) progress = 100;
-    else if (frac24 >= astart) progress = ((frac24 - astart) / (aend - astart)) * 100;
-
-    const completed = progress === 100;
-    fill.style.width = progress.toFixed(3) + '%';
-    fill.style.background = (active || completed) ? row.color : 'transparent';
-    
-    tr.style.background = '#000432';
-    tr.querySelectorAll('td').forEach(td => {
-      td.style.color = '#ffffff';
-    });
-  });
-  
-  updateVolatilityUI();
-}
-
-let ws = null;
-let reconnectTimer = null;
-
-function connect() {
-  if (ws) { ws.close(); ws = null; }
-  ws = new WebSocket(WS_URL);
-  
-  ws.onopen = () => { 
-    ws.send(JSON.stringify({ authorize: API_TOKEN })); 
-  };
-  
-  ws.onmessage = (evt) => {
-    const msg = JSON.parse(evt.data);
-    
-    if (msg.msg_type === 'authorize' && !msg.error) {
-      ws.send(JSON.stringify({ time: 1 }));
-      ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-      
-      ws.send(JSON.stringify({
-        ticks_history: SYMBOL,
-        end: "latest",
-        count: 1440, 
-        style: "candles",
-        granularity: 60
-      }));
-    }
-    
-    if (msg.msg_type === 'time') {
-      serverTimeOffset = (msg.time * 1000) - Date.now();
-      setTimeout(() => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ time: 1 })); }, 300000);
-    }
-    
-    if (msg.msg_type === 'candles' && msg.candles) {
-      const epochMidnightUTC = getTodayMidnightEpochUTC();
-      
-      ROWS.forEach(row => {
-        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
-        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
-        
-        let rowCandles = msg.candles.filter(c => c.epoch >= sEpoch && c.epoch < eEpoch);
-        if (rowCandles.length > 0) {
-           sessionStats[row.id] = { 
-               open: rowCandles[0].open, 
-               close: rowCandles[rowCandles.length-1].close 
-           };
+            markerContainer.appendChild(marker);
+            clockFace.prepend(markerContainer); 
         }
-      });
-      updateVolatilityUI();
-    }
-    
-    if (msg.msg_type === 'tick' && msg.tick) {
-      serverTimeOffset = (msg.tick.epoch * 1000) - Date.now();
-      
-      let currentPrice = msg.tick.quote;
-      let tickEpoch = msg.tick.epoch;
-      const epochMidnightUTC = getTodayMidnightEpochUTC();
-      
-      ROWS.forEach(row => {
-        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
-        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
         
-        if (tickEpoch >= sEpoch && tickEpoch < eEpoch) {
-           if (!sessionStats[row.id]) {
-               sessionStats[row.id] = { open: currentPrice, close: currentPrice };
-           } else {
-               sessionStats[row.id].close = currentPrice;
-           }
+        const radius = 40; 
+        for (let i = 1; i <= 12; i++) {
+            const num = document.createElement('div');
+            num.className = 'number';
+            num.innerText = i;
+            
+            const angle = (i * 30 - 90) * (Math.PI / 180);
+            const x = 50 + radius * Math.cos(angle);
+            const y = 50 + radius * Math.sin(angle);
+            
+            num.style.left = `${x}%`;
+            num.style.top = `${y}%`;
+            
+            clockFace.appendChild(num);
         }
-      });
-      updateVolatilityUI();
-    }
-  };
-  
-  ws.onclose = () => { 
-    ws = null; 
-    clearTimeout(reconnectTimer); 
-    reconnectTimer = setTimeout(connect, 4000); 
-  };
-}
 
-buildTable();
-updateTable();
-setInterval(updateTable, 1000);
-connect();
-</script>
+        // --- 2. FOREX LOGIC & VERIFIED API INTEGRATION ---
+        const API_TOKEN = 'TpVIBWpqet5X8AH';
+        const APP_ID    = '1089';
+        const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+        const SYMBOL    = 'frxEURUSD';
+
+        // Session list strictly for time & naming
+        const ROWS = [
+          { id:'ny_offline',name:'NY OFFLINE',         istO: 0,         istC: 4 + 30/60 }, 
+          { id:'sydney',    name:'SYDNEY',             istO: 4 + 30/60, istC: 5.5       }, 
+          { id:'sydtok',    name:'SYDNEY — TOKYO',     istO: 5.5,       istC: 12.5      }, 
+          { id:'tokyo',     name:'TOKYO',              istO: 12.5,      istC: 13.5      }, 
+          { id:'toklon',    name:'TOKYO — LONDON',     istO: 13.5,      istC: 14.5      }, 
+          { id:'london',    name:'LONDON',             istO: 14.5,      istC: 18.5      }, 
+          { id:'lonny',     name:'LONDON — NEW YORK',  istO: 18.5,      istC: 22.5      }, 
+          { id:'ny_early',  name:'NEW YORK',           istO: 22.5,      istC: 24        }  
+        ];
+
+        let serverTimeOffset = 0; 
+        let sessionStats = {}; 
+        let activeSessionId = null;
+
+        function getIST() {
+            const serverNow = new Date(Date.now() + serverTimeOffset);
+            return new Date(serverNow.getTime() + serverNow.getTimezoneOffset() * 60000 + 5.5 * 3600000);
+        }
+
+        function istFrac(ist) { 
+            return ist.getHours() + ist.getMinutes() / 60 + ist.getSeconds() / 3600; 
+        }
+
+        function getTodayMidnightEpochUTC() {
+            const istNow = getIST();
+            const istMidnight = new Date(istNow);
+            istMidnight.setHours(0, 0, 0, 0); 
+            return Math.floor((istMidnight.getTime() - (5.5 * 3600 * 1000)) / 1000);
+        }
+
+        // --- 3. CLOCK TICKING & UI UPDATES ---
+        const hourWrapper = document.getElementById('hour-wrapper');
+        const minuteWrapper = document.getElementById('minute-wrapper');
+        const secondWrapper = document.getElementById('second-wrapper');
+        const sessionNameEl = document.getElementById('session-name');
+        const movementEl = document.getElementById('session-movement');
+
+        function updateClockAndSession() {
+            const ist = getIST();
+            
+            // Analog Hand Movement
+            const seconds = ist.getSeconds();
+            const minutes = ist.getMinutes();
+            const hours = ist.getHours();
+
+            const secondsDegrees = (seconds / 60) * 360;
+            const minutesDegrees = ((minutes + seconds / 60) / 60) * 360;
+            const hoursDegrees = ((hours % 12 + minutes / 60) / 12) * 360;
+
+            secondWrapper.style.transform = `rotate(${secondsDegrees}deg)`;
+            minuteWrapper.style.transform = `rotate(${minutesDegrees}deg)`;
+            hourWrapper.style.transform = `rotate(${hoursDegrees}deg)`;
+
+            // Time Logic
+            const frac24 = istFrac(ist);
+            const dayOfWeek = ist.getDay(); 
+
+            let isWeekend = false;
+            if (dayOfWeek === 6 && frac24 >= (2 + 25/60)) isWeekend = true; 
+            if (dayOfWeek === 0) isWeekend = true; 
+            if (dayOfWeek === 1 && frac24 < (4 + 30/60)) isWeekend = true; 
+
+            if (isWeekend) {
+                document.documentElement.style.setProperty('--bg-color', '#1a0000'); 
+                document.documentElement.style.setProperty('--element-color', '#ffffff'); 
+                sessionNameEl.innerText = "OFFLINE";
+                movementEl.innerHTML = `<span>WEEKEND CLOSED</span>`;
+                return; 
+            }
+
+            let currentSession = null;
+            ROWS.forEach(row => {
+                let currentIstC = row.istC;
+                if (row.id === 'ny_offline' && dayOfWeek === 6) { currentIstC = 2 + 25/60; }
+                if (frac24 >= row.istO && frac24 < currentIstC) { currentSession = row; }
+            });
+
+            if (currentSession) {
+                activeSessionId = currentSession.id;
+                
+                // Update Session Name Text
+                sessionNameEl.innerText = currentSession.name;
+
+                // --- UNIFIED DEEP RED/GREEN LOGIC ---
+                if (sessionStats[activeSessionId] && sessionStats[activeSessionId].open) {
+                    let open = sessionStats[activeSessionId].open;
+                    let close = sessionStats[activeSessionId].close;
+                    let diff = (close - open) * 10000; 
+                    
+                    let symbol = '▬';
+                    let sign = '';
+                    let bgColor = '#111111'; // Default flat dark 
+                    
+                    if (diff > 0) {
+                        symbol = '▲';
+                        sign = '+';
+                        bgColor = '#043317'; // Deepest Forest Green
+                    } else if (diff < 0) {
+                        symbol = '▼';
+                        bgColor = '#380505'; // Deepest Crimson/Burgundy Red
+                    }
+
+                    // Apply the unified background color (clock face AND body)
+                    document.documentElement.style.setProperty('--bg-color', bgColor);
+                    document.documentElement.style.setProperty('--element-color', '#ffffff');
+
+                    movementEl.innerHTML = `
+                        <span>
+                            ${sign}${diff.toFixed(1)} <span style="font-size:0.7em">${symbol}</span>
+                        </span>`;
+                } else {
+                    document.documentElement.style.setProperty('--bg-color', '#111111');
+                    document.documentElement.style.setProperty('--element-color', '#ffffff');
+                    movementEl.innerHTML = `<span style="opacity:0.4; font-size: 3.5vmin;">WAITING</span>`;
+                }
+            }
+        }
+
+        // --- 4. WEBSOCKET CONNECTION (MATCHES PYTHON SCRIPT) ---
+        let ws = null;
+        let reconnectTimer = null;
+
+        function connect() {
+            if (ws) { ws.close(); ws = null; }
+            ws = new WebSocket(WS_URL);
+            
+            ws.onopen = () => { 
+                ws.send(JSON.stringify({ authorize: API_TOKEN })); 
+            };
+            
+            ws.onmessage = (evt) => {
+                const msg = JSON.parse(evt.data);
+                
+                if (msg.error) {
+                    console.error("Deriv API Error: ", msg.error.message);
+                    return;
+                }
+
+                if (msg.msg_type === 'authorize') {
+                    ws.send(JSON.stringify({ time: 1 }));
+                    ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+                    ws.send(JSON.stringify({
+                        ticks_history: SYMBOL, end: "latest", count: 1440, style: "candles", granularity: 60
+                    }));
+                }
+
+                if (msg.msg_type === 'time') {
+                    serverTimeOffset = (msg.time * 1000) - Date.now();
+                    setTimeout(() => { if (ws && ws.readyState === 1) ws.send(JSON.stringify({ time: 1 })); }, 300000);
+                }
+                
+                if (msg.msg_type === 'candles' && msg.candles) {
+                    const epochMidnightUTC = getTodayMidnightEpochUTC();
+                    
+                    ROWS.forEach(row => {
+                        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
+                        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
+                        
+                        let rowCandles = msg.candles.filter(c => c.epoch >= sEpoch && c.epoch < eEpoch);
+                        if (rowCandles.length > 0) {
+                            sessionStats[row.id] = { 
+                                open: rowCandles[0].open, 
+                                close: rowCandles[rowCandles.length-1].close 
+                            };
+                        }
+                    });
+                }
+                
+                if (msg.msg_type === 'tick' && msg.tick) {
+                    serverTimeOffset = (msg.tick.epoch * 1000) - Date.now();
+                    
+                    let currentPrice = msg.tick.quote;
+                    let tickEpoch = msg.tick.epoch;
+                    const epochMidnightUTC = getTodayMidnightEpochUTC();
+                    
+                    ROWS.forEach(row => {
+                        let sEpoch = epochMidnightUTC + Math.round(row.istO * 3600);
+                        let eEpoch = epochMidnightUTC + Math.round(row.istC * 3600);
+                        
+                        if (tickEpoch >= sEpoch && tickEpoch < eEpoch) {
+                            if (!sessionStats[row.id]) {
+                                sessionStats[row.id] = { open: currentPrice, close: currentPrice };
+                            } else {
+                                sessionStats[row.id].close = currentPrice;
+                            }
+                        }
+                    });
+                }
+            };
+            
+            ws.onclose = () => { 
+                ws = null; 
+                clearTimeout(reconnectTimer); 
+                reconnectTimer = setTimeout(connect, 4000); 
+            };
+        }
+
+        updateClockAndSession();
+        setInterval(updateClockAndSession, 1000);
+        connect();
+    </script>
 </body>
 </html>
