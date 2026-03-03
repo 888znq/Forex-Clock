@@ -263,9 +263,40 @@
             transition: background-color 0.5s ease;
         }
 
+        /* --- Fullscreen Button --- */
+        #fullscreen-btn {
+            position: absolute;
+            top: 3vmin;
+            right: 3vmin;
+            background: transparent;
+            color: var(--element-color);
+            border: 0.3vmin solid var(--element-color);
+            border-radius: 1vmin;
+            padding: 1vmin 2vmin;
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 2.5vmin;
+            font-weight: 600;
+            cursor: pointer;
+            z-index: 100;
+            transition: all 0.3s ease;
+            box-shadow: 0 0.5vmin 1vmin rgba(0,0,0,0.3);
+        }
+
+        #fullscreen-btn:hover {
+            background: var(--element-color);
+            color: var(--bg-color);
+        }
+
+        /* Utility class to hide the button */
+        .hidden {
+            display: none !important;
+        }
+
     </style>
 </head>
 <body>
+
+    <button id="fullscreen-btn">FULLSCREEN</button>
 
     <div class="clock" id="clock-face">
         <div class="brand-text" id="session-name">SYNCING...</div>
@@ -288,6 +319,26 @@
     </div>
 
     <script>
+        // --- FULLSCREEN LOGIC ---
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            }
+        });
+
+        // Listen for standard fullscreen changes to toggle button visibility
+        document.addEventListener('fullscreenchange', () => {
+            if (document.fullscreenElement) {
+                fullscreenBtn.classList.add('hidden');
+            } else {
+                fullscreenBtn.classList.remove('hidden');
+            }
+        });
+
         // --- 1. CLOCK UI GENERATION ---
         const clockFace = document.getElementById('clock-face');
 
