@@ -1,331 +1,612 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Clock</title>
-    
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Audiowide&family=Chakra+Petch:wght@600;700&display=swap');
+<meta charset="UTF-8">
+<meta http-equiv="x-ua-compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>7-Day Dynamic Forex Timeline (Live Weekly Tracker)</title>
+<!-- Preconnect: DNS + TLS handshake done before JS even runs -->
+<link rel="preconnect" href="wss://ws.derivws.com" crossorigin>
+<style>
+  /* ═══════════════════════════════════════════════════════════
+     TIER-1 PERFORMANCE CSS  v3
+     • Zero network fonts  → 100% OS system stack (0 ms latency)
+     • CSS variables        → single cascade resolution pass
+     • scaleX() fills       → compositor-only, never triggers layout
+     • opacity hover        → compositor-only, no repaint
+     • contain: strict      → each row is an isolated paint boundary
+     • will-change          → GPU layers pre-promoted at parse time
+     • No filter/brightness → always triggers raster, removed
+     • No box-shadow hover  → triggers repaint per frame, removed
+     • No text-shadow       → rasterises every text node, removed
+     • No width transition  → paint every interpolated frame, removed
+     • No scanline gradient → extra raster pass, removed
+     • No cursor: crosshair → compositor update per hover, removed
+     ═══════════════════════════════════════════════════════════ */
 
-        :root {
-            --bg-color: #111111;
-            --element-color: #ffffff;
-        }
+  :root {
+    --bg:           #00040f;
+    --bg-bar:       #000509;
+    --border:       rgba(80,160,255,0.12);
+    --border-seg:   rgba(80,160,255,0.06);
+    --txt-label:    #7eb8f7;
+    --txt-name:     rgba(255,255,255,0.92);
+    --txt-axis:     rgba(90,150,220,0.6);
+    --marker:       #00e5ff;
+    --marker-glow:  rgba(0,229,255,0.8);
+    /* System font stack — resolves from OS, zero network, zero parse */
+    --font:         'SF Mono','Cascadia Code','Fira Mono','Consolas','Liberation Mono',monospace;
+  }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+  *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            background-color: var(--bg-color);
-            overflow: hidden;
-            font-family: 'Chakra Petch', sans-serif;
-        }
+  body {
+    background: var(--bg);
+    font-family: var(--font);
+    color: #fff;
+    height: 100vh; width: 100vw;
+    display: flex; flex-direction: column;
+    padding: 1.5vh 1.5vw;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeSpeed;
+    /* Disable pointer interaction until data loads — eliminates hit-test cost */
+    pointer-events: none;
+  }
+  body.ready { pointer-events: auto; }
 
-        /* --- Main Clock Bezel and Face --- */
-        .clock {
-            width: 85vmin; 
-            height: 85vmin;
-            border-radius: 50%;
-            background-color: var(--bg-color); 
-            position: relative;
-            border: 2.5vmin solid var(--element-color); 
-            box-shadow: 0 4vmin 8vmin rgba(0,0,0,0.8), inset 0 0 6vmin rgba(0,0,0,0.4);
-        }
+  .stats-header { visibility:hidden; height:0; overflow:hidden; margin:0; }
 
-        /* --- Minute and Hour Markers --- */
-        .marker-container {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            top: 0;
-            left: 0;
-            z-index: 3;
-        }
+  .grid-container {
+    width:100%; flex-grow:1;
+    display:flex; flex-direction:column;
+    gap:1vh; position:relative;
+    padding-bottom:25px;
+  }
 
-        .tick-marker {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 0.4vmin;
-            height: 1.6vmin;
-            background-color: var(--element-color);
-        }
+  .day-row {
+    display:flex; align-items:center; width:100%; flex:1;
+    position:relative;
+    contain: layout style paint; /* strict but allows overflow for tooltips */
+  }
 
-        .triangle-marker {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 2.2vmin;
-            height: 2vmin;
-            background-color: var(--element-color);
-            clip-path: polygon(0 0, 100% 0, 50% 100%);
-        }
+  .day-label {
+    width:45px;
+    font-family: var(--font);
+    font-weight:700;
+    font-size: clamp(0.72rem, 0.95vw, 1rem);
+    color: var(--txt-label);
+    text-transform:uppercase;
+    letter-spacing:0.12em;
+    flex-shrink:0;
+  }
 
-        /* --- Clock Numbers --- */
-        .number {
-            position: absolute;
-            transform: translate(-50%, -50%);
-            font-family: 'Audiowide', sans-serif;
-            font-weight: 700;
-            font-size: 10.5vmin; 
-            color: var(--element-color);
-            line-height: 1;
-            z-index: 4; 
-            text-shadow: 0 0.5vmin 1vmin rgba(0,0,0,0.2);
-        }
+  .bar-container {
+    flex-grow:1; height:100%; display:flex;
+    background: var(--bg-bar);
+    border: 1px solid var(--border);
+    border-radius:3px; overflow:hidden; position:relative;
+  }
 
-        /* --- Hands Configuration --- */
-        .hand-wrapper {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 10;
-        }
+  .segment {
+    height:100%; position:relative;
+    overflow:hidden;
+    border-right: 1px solid var(--border-seg);
+    flex-shrink:0;
+    /* No cursor: crosshair — saves compositor update on every hover */
+  }
+  .segment:last-child { border-right:none; }
 
-        /* Hour Hand */
-        .hour-hand {
-            position: absolute;
-            left: 50%;
-            bottom: 50%; 
-            transform: translateX(-50%);
-            height: 25%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .hour-hand .arrow {
-            width: 0; height: 0;
-            border-left: 1.6vmin solid transparent;
-            border-right: 1.6vmin solid transparent;
-            border-bottom: 3.5vmin solid var(--element-color);
-        }
-        .hour-hand .shaft {
-            width: 1.5vmin;
-            height: calc(100% - 3.5vmin);
-            background-color: var(--element-color);
-        }
-        .hour-tail {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translateX(-50%);
-            width: 2.3vmin;
-            height: 3.5vmin;
-            background-color: var(--element-color);
-        }
+  .segment-fill {
+    position:absolute; top:0; left:0; height:100%; width:100%;
+    /* scaleX() lives entirely in the compositor — zero layout, zero paint */
+    transform: scaleX(0);
+    transform-origin: left center;
+    pointer-events:none;
+    will-change: transform;
+    /* No transition — instant set, zero interpolated paint frames */
+  }
 
-        /* Minute Hand */
-        .minute-hand {
-            position: absolute;
-            left: 50%;
-            bottom: 50%;
-            transform: translateX(-50%);
-            height: 40%;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-        .minute-hand .arrow {
-            width: 0; height: 0;
-            border-left: 1.4vmin solid transparent;
-            border-right: 1.4vmin solid transparent;
-            border-bottom: 3.8vmin solid var(--element-color);
-        }
-        .minute-hand .shaft {
-            width: 1.3vmin;
-            height: calc(100% - 3.8vmin);
-            background-color: var(--element-color);
-        }
-        .minute-tail {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translateX(-50%);
-            width: 2vmin;
-            height: 3.5vmin;
-            background-color: var(--element-color);
-        }
+  .segment-content {
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    display:flex; flex-direction:column;
+    justify-content:center; align-items:center;
+    pointer-events:none; z-index:2;
+    transform: translateZ(0); /* own compositing layer */
+  }
 
-        /* Second Hand */
-        .second-hand {
-            position: absolute;
-            left: 50%;
-            bottom: 50%;
-            transform: translateX(-50%);
-            width: 0.35vmin;
-            height: 44%;
-            background-color: var(--element-color); 
-        }
-        .second-tail {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translateX(-50%);
-            width: 0.35vmin;
-            height: 12%;
-            background-color: var(--element-color); 
-        }
+  /* Hover: opacity only — stays in compositor, never repaints */
+  .segment:hover .segment-fill { opacity:0.78; }
+  .segment:hover { z-index:10; }
 
-        /* --- Center Pivot Dot --- */
-        .center-dot {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 4vmin;
-            height: 4vmin;
-            background-color: var(--element-color);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 15;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            box-shadow: 0 0 1vmin rgba(0,0,0,0.5);
-        }
-        .center-dot::after {
-            content: '';
-            width: 1.4vmin;
-            height: 1.4vmin;
-            background-color: var(--bg-color);
-            border-radius: 50%;
-        }
+  .segment-name {
+    font-size: clamp(0.78rem, 1.2vw, 1.15rem);
+    font-weight:800;
+    color: var(--txt-name);
+    white-space:nowrap; padding:0 3px;
+    letter-spacing:0.1em;
+  }
 
-        /* --- Fullscreen Button --- */
-        #fullscreen-btn {
-            position: absolute;
-            top: 3vmin;
-            right: 3vmin;
-            background: transparent;
-            color: var(--element-color);
-            border: 0.3vmin solid var(--element-color);
-            border-radius: 1vmin;
-            padding: 1vmin 2vmin;
-            font-family: 'Chakra Petch', sans-serif;
-            font-size: 2.5vmin;
-            font-weight: 600;
-            cursor: pointer;
-            z-index: 100;
-            transition: all 0.3s ease;
-            box-shadow: 0 0.5vmin 1vmin rgba(0,0,0,0.3);
-        }
+  .segment-diff {
+    font-size: clamp(0.52rem, 0.78vw, 0.8rem);
+    font-weight:700;
+    letter-spacing:0.02em;
+    opacity:0.95;
+  }
 
-        #fullscreen-btn:hover {
-            background: var(--element-color);
-            color: var(--bg-color);
-        }
+  /* ── Narrow segments: rotate text vertically so it always fits ── */
+  .segment[data-narrow="1"] .segment-content {
+    flex-direction: row;
+    gap: 3px;
+  }
+  .segment[data-narrow="1"] .segment-name {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: clamp(0.58rem, 0.85vw, 0.88rem);
+    letter-spacing: 0.05em;
+    padding: 2px 0;
+  }
+  .segment[data-narrow="1"] .segment-diff {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    transform: rotate(180deg);
+    font-size: clamp(0.48rem, 0.65vw, 0.7rem);
+    padding: 2px 0;
+  }
 
-        .hidden {
-            display: none !important;
-        }
+  /* Tooltip — opacity transition is compositor-only */
+  .segment::after {
+    content: attr(data-info);
+    position:absolute; bottom:110%; left:50%;
+    transform: translateX(-50%) translateZ(0);
+    background: rgba(0,4,15,0.97);
+    color: var(--txt-label);
+    padding:5px 10px; border-radius:3px;
+    font-size:0.78rem; font-weight:600;
+    white-space:nowrap;
+    opacity:0; pointer-events:none;
+    transition: opacity 0.15s ease;
+    border: 1px solid rgba(0,229,255,0.25);
+    z-index:100;
+    will-change: opacity;
+  }
+  .segment:hover::after { opacity:1; }
 
-    </style>
+  /* X-axis */
+  .x-axis-row {
+    position:absolute; bottom:0; left:0; right:0;
+    display:flex; align-items:flex-start; height:15px;
+  }
+  .x-axis-labels { flex-grow:1; height:100%; position:relative; margin-left:45px; }
+  .x-axis-label {
+    position:absolute; transform:translateX(-50%);
+    font-size:0.58rem; color: var(--txt-axis);
+    font-weight:600; top:5px; letter-spacing:0.05em;
+  }
+  .x-axis-label::before {
+    content:'';
+    position:absolute; top:-5px; left:50%;
+    width:1px; height:4px;
+    background: rgba(0,229,255,0.25);
+  }
+
+  /* Time marker — GPU transitions only */
+  #time-marker {
+    position:absolute; width:2px;
+    background: var(--marker);
+    box-shadow: 0 0 10px 2px var(--marker-glow);
+    z-index:50; pointer-events:none;
+    transition: left 1s linear, top 0.3s ease, height 0.3s ease;
+    will-change: left, top, height;
+    transform: translateZ(0);
+  }
+  .time-marker-dot {
+    position:absolute; top:-4px; left:50%;
+    transform: translateX(-50%) translateZ(0);
+    width:9px; height:9px;
+    background: var(--marker); border-radius:50%;
+    box-shadow: 0 0 10px 3px var(--marker-glow);
+  }
+  .time-marker-tail {
+    position:absolute; bottom:-4px; left:50%;
+    transform: translateX(-50%) translateZ(0);
+    width:5px; height:5px;
+    background: rgba(0,229,255,0.5); border-radius:50%;
+  }
+  /* ── Floating clock on time marker ── */
+  #marker-clock {
+    position: absolute;
+    top: -112px;
+    left: 50%;
+    transform: translateX(-50%) translateZ(0);
+    background: rgba(0,4,15,0.95);
+    border: 1px solid var(--marker);
+    border-radius: 5px;
+    padding: 5px 10px;
+    font-family: var(--font);
+    color: var(--marker);
+    white-space: nowrap;
+    letter-spacing: 0.08em;
+    pointer-events: none;
+    box-shadow: 0 0 10px 2px rgba(0,229,255,0.4);
+    will-change: transform;
+    z-index: 60;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+  }
+  #marker-clock .clock-date {
+    font-size: clamp(0.9rem, 1.4vw, 1.3rem);
+    font-weight: 800;
+    opacity: 0.9;
+    letter-spacing: 0.1em;
+  }
+  #marker-clock .clock-day {
+    font-size: clamp(1rem, 1.6vw, 1.5rem);
+    font-weight: 900;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+  }
+  #marker-clock .clock-time {
+    font-size: clamp(1.1rem, 1.8vw, 1.7rem);
+    font-weight: 900;
+    letter-spacing: 0.14em;
+  }
+</style>
 </head>
 <body>
 
-    <button id="fullscreen-btn">FULLSCREEN</button>
+<div class="stats-header">
+  <div><div id="val-open"></div></div>
+  <div><div id="val-live"></div></div>
+  <div><div id="val-diff"></div></div>
+</div>
 
-    <div class="clock" id="clock-face">
-        <div class="hand-wrapper" id="hour-wrapper">
-            <div class="hour-hand"><div class="arrow"></div><div class="shaft"></div></div>
-            <div class="hour-tail"></div>
-        </div>
-        <div class="hand-wrapper" id="minute-wrapper">
-            <div class="minute-hand"><div class="arrow"></div><div class="shaft"></div></div>
-            <div class="minute-tail"></div>
-        </div>
-        <div class="hand-wrapper" id="second-wrapper">
-            <div class="second-hand"></div>
-            <div class="second-tail"></div>
-        </div>
-        <div class="center-dot"></div>
-    </div>
+<div class="grid-container" id="grid"></div>
 
-    <script>
-        // --- FULLSCREEN LOGIC ---
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
+<script>
+const API_TOKEN = 'TpVIBWpqet5X8AH';
+const APP_ID    = '1089';
+const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
+const SYMBOL    = 'frxEURUSD';
 
-        fullscreenBtn.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(err => {
-                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
-                });
-            }
-        });
+const C = {
+  offline_ny: '#2a205a',
+  offline_wk: '#1a0000',
+  blank:      '#050818',
+  bull:       '#1cc658',
+  bear:       '#ff3333'
+};
 
-        document.addEventListener('fullscreenchange', () => {
-            if (document.fullscreenElement) {
-                fullscreenBtn.classList.add('hidden');
-            } else {
-                fullscreenBtn.classList.remove('hidden');
-            }
-        });
+function getCoreDay() {
+  return [
+    { n: 'NY',       h: 2.5, c: C.blank,      isOff: false, time: '12:00 AM - 02:30 AM' },
+    { n: 'OFF',      h: 2.0, c: C.offline_ny, isOff: true,  time: '02:30 AM - 04:30 AM' },
+    { n: 'SYD',      h: 1.0, c: C.blank,      isOff: false, time: '04:30 AM - 05:30 AM' },
+    { n: 'SYD+TOK',  h: 7.0, c: C.blank,      isOff: false, time: '05:30 AM - 12:30 PM' },
+    { n: 'TOK',      h: 1.0, c: C.blank,      isOff: false, time: '12:30 PM - 01:30 PM' },
+    { n: 'TOK+LON',  h: 1.0, c: C.blank,      isOff: false, time: '01:30 PM - 02:30 PM' },
+    { n: 'LON',      h: 4.0, c: C.blank,      isOff: false, time: '02:30 PM - 06:30 PM' },
+    { n: 'LON+NY',   h: 4.0, c: C.blank,      isOff: false, time: '06:30 PM - 10:30 PM' },
+    { n: 'NY',       h: 1.5, c: C.blank,      isOff: false, time: '10:30 PM - 12:00 AM' }
+  ];
+}
 
-        // --- CLOCK UI GENERATION ---
-        const clockFace = document.getElementById('clock-face');
+const monDay = getCoreDay();
+monDay[0] = { n: 'WKND',     h: 2.5, c: C.offline_wk, isOff: true,  time: '12:00 AM - 02:30 AM' };
+monDay[1] = { n: 'EARLY',    h: 2.0, c: C.blank,      isOff: false, time: '02:30 AM - 04:30 AM' };
 
-        for (let i = 0; i < 60; i++) {
-            const markerContainer = document.createElement('div');
-            markerContainer.className = 'marker-container';
-            markerContainer.style.transform = `rotate(${i * 6}deg)`; 
+const satDay = [
+  { n: 'NY',      h: 2.5,  c: C.blank,      isOff: false, time: '12:00 AM - 02:30 AM' },
+  { n: 'WKND',    h: 21.5, c: C.offline_wk, isOff: true,  time: '02:30 AM - 12:00 AM' }
+];
+const sunDay = [
+  { n: 'WKND', h: 24.0, c: C.offline_wk, isOff: true, time: '12:00 AM - 12:00 AM' }
+];
 
-            const marker = document.createElement('div');
-            if (i % 5 === 0) { marker.className = 'triangle-marker'; } 
-            else { marker.className = 'tick-marker'; }
+const week = [
+  { name: 'MON', segments: monDay },
+  { name: 'TUE', segments: getCoreDay() },
+  { name: 'WED', segments: getCoreDay() },
+  { name: 'THU', segments: getCoreDay() },
+  { name: 'FRI', segments: getCoreDay() },
+  { name: 'SAT', segments: satDay },
+  { name: 'SUN', segments: sunDay }
+];
 
-            markerContainer.appendChild(marker);
-            clockFace.prepend(markerContainer); 
-        }
-        
-        const radius = 40; 
-        for (let i = 1; i <= 12; i++) {
-            const num = document.createElement('div');
-            num.className = 'number';
-            num.innerText = i;
-            
-            const angle = (i * 30 - 90) * (Math.PI / 180);
-            const x = 50 + radius * Math.cos(angle);
-            const y = 50 + radius * Math.sin(angle);
-            
-            num.style.left = `${x}%`;
-            num.style.top = `${y}%`;
-            
-            clockFace.appendChild(num);
-        }
+function getWeekStartEpochUTC() {
+  const now    = new Date();
+  const utcNow = now.getTime();
+  const istNow = utcNow + (5.5 * 3600 * 1000);
+  const dIst   = new Date(istNow);
+  let day  = dIst.getUTCDay();
+  let diff = day === 0 ? 6 : day - 1;
+  let elapsedMs = (diff * 86400000) + (dIst.getUTCHours() * 3600000) + (dIst.getUTCMinutes() * 60000) + (dIst.getUTCSeconds() * 1000) + dIst.getUTCMilliseconds();
+  let monIstMs = istNow - elapsedMs;
+  return Math.floor((monIstMs - (5.5 * 3600 * 1000)) / 1000);
+}
 
-        // --- CLOCK TICKING ---
-        const hourWrapper = document.getElementById('hour-wrapper');
-        const minuteWrapper = document.getElementById('minute-wrapper');
-        const secondWrapper = document.getElementById('second-wrapper');
+const weekStartEpoch = getWeekStartEpochUTC();
+let runEpoch   = weekStartEpoch;
+let flatSegments = [];
 
-        function updateClock() {
-            const now = new Date();
-            const seconds = now.getSeconds();
-            const minutes = now.getMinutes();
-            const hours = now.getHours();
+week.forEach((day, dIdx) => {
+  day.segments.forEach((seg, sIdx) => {
+    seg.domId      = `seg-${dIdx}-${sIdx}`;
+    seg.startEpoch = runEpoch;
+    runEpoch      += Math.round(seg.h * 3600);
+    seg.endEpoch   = runEpoch;
+    flatSegments.push(seg);
+  });
+});
 
-            const secondsDegrees = (seconds / 60) * 360;
-            const minutesDegrees = ((minutes + seconds / 60) / 60) * 360;
-            const hoursDegrees = ((hours % 12 + minutes / 60) / 12) * 360;
+// ── RENDER GRID ──────────────────────────────────────────────
+const grid = document.getElementById('grid');
+week.forEach((day) => {
+  const row   = document.createElement('div');
+  row.className = 'day-row';
 
-            secondWrapper.style.transform = `rotate(${secondsDegrees}deg)`;
-            minuteWrapper.style.transform = `rotate(${minutesDegrees}deg)`;
-            hourWrapper.style.transform = `rotate(${hoursDegrees}deg)`;
-        }
+  const label = document.createElement('div');
+  label.className = 'day-label';
+  label.innerText = day.name;
 
-        updateClock();
-        setInterval(updateClock, 1000);
-    </script>
+  const bar = document.createElement('div');
+  bar.className = 'bar-container';
+
+  day.segments.forEach((seg) => {
+    const segment = document.createElement('div');
+    segment.className = 'segment';
+    segment.id = seg.domId;
+    segment.style.width = `${(seg.h / 24) * 100}%`;
+    segment.style.backgroundColor = seg.isOff ? seg.c : C.blank;
+    segment.setAttribute('data-info', `${seg.n} (${seg.time})`);
+    // Mark segments ≤ 1.5 hrs as narrow → triggers vertical text CSS
+    if (seg.h <= 1.5) segment.setAttribute('data-narrow', '1');
+
+    const fill = document.createElement('div');
+    fill.className = 'segment-fill';
+    fill.id = `fill-${seg.domId}`;
+    segment.appendChild(fill);
+
+    const content  = document.createElement('div');
+    content.className = 'segment-content';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'segment-name';
+    nameSpan.innerText = seg.n;
+    content.appendChild(nameSpan);
+
+    const diffSpan = document.createElement('span');
+    diffSpan.className = 'segment-diff';
+    diffSpan.id = `diff-${seg.domId}`;
+    content.appendChild(diffSpan);
+
+    segment.appendChild(content);
+    bar.appendChild(segment);
+  });
+
+  row.appendChild(label);
+  row.appendChild(bar);
+  grid.appendChild(row);
+});
+
+// ── X-AXIS ───────────────────────────────────────────────────
+const xRow = document.createElement('div');
+xRow.className = 'x-axis-row';
+const xLabels = document.createElement('div');
+xLabels.className = 'x-axis-labels';
+for (let i = 0; i <= 24; i++) {
+  const lbl = document.createElement('div');
+  lbl.className = 'x-axis-label';
+  lbl.style.left = `${(i / 24) * 100}%`;
+  lbl.innerText  = i === 24 ? '0' : `${i}`;
+  xLabels.appendChild(lbl);
+}
+xRow.appendChild(xLabels);
+grid.appendChild(xRow);
+
+// ── TIME MARKER ──────────────────────────────────────────────
+const marker = document.createElement('div');
+marker.id = 'time-marker';
+marker.innerHTML = '<div class="time-marker-dot"></div><div id="marker-clock"><span class="clock-date">--/--/----</span><span class="clock-day">---</span><span class="clock-time">00:00:00</span></div><div class="time-marker-tail"></div>';
+grid.appendChild(marker);
+
+// Cache row elements once — never query DOM in hot loop
+const rowEls = Array.from(document.querySelectorAll('.day-row'));
+
+// rAF-based time marker — syncs to browser render cycle, never drifts
+const clockEl = document.getElementById('marker-clock');
+let rafMarker = null;
+function scheduleMarker() {
+  if (rafMarker) return;
+  rafMarker = requestAnimationFrame(() => {
+    rafMarker = null;
+    const now    = new Date();
+    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
+    let day = istNow.getDay();
+    day = (day === 0) ? 6 : day - 1;
+    const secs = (istNow.getHours() * 3600) + (istNow.getMinutes() * 60) + istNow.getSeconds();
+    const pct  = (secs / 86400) * 100;
+    if (rowEls[day]) {
+      marker.style.left   = `calc(45px + (100% - 45px) * ${pct / 100})`;
+      marker.style.top    = `${rowEls[day].offsetTop}px`;
+      marker.style.height = `${rowEls[day].offsetHeight}px`;
+    }
+    // Live clock — Day, DD/MM/YYYY, HH:MM:SS in IST
+    const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+    const hh  = String(istNow.getHours()).padStart(2,'0');
+    const mm  = String(istNow.getMinutes()).padStart(2,'0');
+    const ss  = String(istNow.getSeconds()).padStart(2,'0');
+    const dd  = String(istNow.getDate()).padStart(2,'0');
+    const mo  = String(istNow.getMonth()+1).padStart(2,'0');
+    const yr  = istNow.getFullYear();
+    const dayName = DAYS[istNow.getDay()];
+    clockEl.querySelector('.clock-day').innerText  = dayName;
+    clockEl.querySelector('.clock-date').innerText = `${dd}/${mo}/${yr}`;
+    clockEl.querySelector('.clock-time').innerText = `${hh}:${mm}:${ss}`;
+  });
+}
+setInterval(scheduleMarker, 1000);
+scheduleMarker();
+
+// ════════════════════════════════════════════════════════════
+// SESSION-CLOSE COMPARISON ENGINE
+// Each session coloured by comparing its close to the PREVIOUS
+// session's close (or week open for the very first session).
+//   GREEN → closed ABOVE prev session's close
+//   RED   → closed BELOW prev session's close
+// Pip label = move from prevClose to thisClose.
+// Live/current segment updates every tick.
+// Past sessions lock close on first tick after endEpoch.
+// ════════════════════════════════════════════════════════════
+
+let ws               = null;
+let weekOpenPrice    = null;
+let currentLiveEpoch = null;
+const sessionClose   = {};
+
+// ── PRE-CACHE every DOM reference at startup ─────────────────
+// getElementById in a hot loop (every tick × every segment) is
+// the single biggest avoidable DOM cost. Cache once, reuse forever.
+const domCache = {};   // domId → { segEl, fillEl, textEl }
+flatSegments.forEach(seg => {
+  if (seg.isOff) return;
+  domCache[seg.domId] = {
+    segEl:  document.getElementById(seg.domId),
+    fillEl: document.getElementById(`fill-${seg.domId}`),
+    textEl: document.getElementById(`diff-${seg.domId}`)
+  };
+});
+// Cache hidden stats elements too
+const elOpen = document.getElementById('val-open');
+const elLive = document.getElementById('val-live');
+const elDiff = document.getElementById('val-diff');
+
+function getPrevClose(targetSeg) {
+  let prev = weekOpenPrice || 0;
+  for (let i = 0; i < flatSegments.length; i++) {
+    const s = flatSegments[i];
+    if (s.domId === targetSeg.domId) break;
+    if (!s.isOff && sessionClose[s.domId] !== undefined) {
+      prev = sessionClose[s.domId];
+    }
+  }
+  return prev;
+}
+
+// ── PENDING PAINT STATE ──────────────────────────────────────
+// Incoming ticks write here; a single rAF flushes to DOM once
+// per frame — no matter how many ticks arrive between frames.
+let pendingPrice = null;
+let pendingEpoch = null;
+let rafPaint     = null;
+
+function flushPaint() {
+  rafPaint = null;
+  const livePrice = pendingPrice;
+  if (!weekOpenPrice || livePrice === null) return;
+
+  // Stats
+  const wPips = (livePrice - weekOpenPrice) * 10000;
+  const wBull = wPips >= 0;
+  elOpen.innerText   = weekOpenPrice.toFixed(5);
+  elLive.innerText   = livePrice.toFixed(5);
+  elDiff.innerText   = `${wBull ? '+' : ''}${wPips.toFixed(1)}${wBull ? '▲' : '▼'}`;
+  elDiff.style.color = wBull ? C.bull : C.bear;
+
+  flatSegments.forEach(seg => {
+    if (seg.isOff) return;
+    const { segEl, fillEl, textEl } = domCache[seg.domId];
+
+    // FUTURE
+    if (currentLiveEpoch < seg.startEpoch) {
+      fillEl.style.transform       = 'scaleX(0)';
+      textEl.innerText             = '';
+      segEl.style.backgroundColor  = C.blank;
+      return;
+    }
+
+    const prevClose = getPrevClose(seg);
+    let thisClose, fillScale;
+
+    if (currentLiveEpoch >= seg.endEpoch) {
+      // PAST — lock close once
+      if (sessionClose[seg.domId] === undefined) {
+        sessionClose[seg.domId] = livePrice;
+      }
+      thisClose = sessionClose[seg.domId];
+      fillScale = 1;
+    } else {
+      // CURRENT — running
+      thisClose = livePrice;
+      sessionClose[seg.domId] = livePrice;
+      const dur = seg.endEpoch - seg.startEpoch;
+      const ela = currentLiveEpoch - seg.startEpoch;
+      fillScale = Math.min(1, Math.max(0, ela / dur));
+    }
+
+    const isBull = thisClose >= prevClose;
+    const color  = isBull ? C.bull : C.bear;
+    const pips   = (thisClose - prevClose) * 10000;
+    const sign   = pips >= 0 ? '+' : '';
+    const lbl    = `${sign}${pips.toFixed(1)}${isBull ? '▲' : '▼'}`;
+
+    // scaleX — compositor only, no layout, no paint
+    fillEl.style.backgroundColor = color;
+    fillEl.style.transform       = `scaleX(${fillScale})`;
+    textEl.innerText             = lbl;
+    textEl.style.color           = '#ffffff';
+    segEl.style.backgroundColor  = C.blank;
+  });
+}
+
+function paintAll(livePrice) {
+  if (!weekOpenPrice) return;
+  pendingPrice = livePrice;
+  // Batch: schedule one rAF flush; extra ticks before frame are free
+  if (!rafPaint) rafPaint = requestAnimationFrame(flushPaint);
+}
+
+function connect() {
+  if (ws) ws.close();
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => ws.send(JSON.stringify({ authorize: API_TOKEN }));
+
+  ws.onmessage = (evt) => {
+    const msg = JSON.parse(evt.data);
+
+    if (msg.msg_type === 'authorize' && !msg.error) {
+      ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+      ws.send(JSON.stringify({
+        ticks_history: SYMBOL,
+        start: weekStartEpoch,
+        end:   weekStartEpoch + (8 * 3600),
+        style: 'candles',
+        granularity: 3600
+      }));
+    }
+
+    if (msg.msg_type === 'candles' && msg.candles && msg.candles.length > 0) {
+      weekOpenPrice = msg.candles[0].open;
+    }
+
+    if (msg.msg_type === 'tick' && msg.tick) {
+      currentLiveEpoch = msg.tick.epoch;
+      const livePrice  = msg.tick.quote;
+      if (!weekOpenPrice) weekOpenPrice = livePrice;
+      // Enable interaction on first data — removes pointer-events:none from body
+      document.body.classList.add('ready');
+      paintAll(livePrice);
+    }
+  };
+
+  ws.onclose = () => setTimeout(connect, 4000);
+}
+
+connect();
+</script>
 </body>
 </html>
