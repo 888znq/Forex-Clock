@@ -4,324 +4,209 @@
 <meta charset="UTF-8">
 <meta http-equiv="x-ua-compatible" content="IE=edge">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>7-Day Dynamic Forex Timeline (Live Weekly Tracker)</title>
-<!-- Preconnect: DNS + TLS handshake done before JS even runs -->
-<link rel="preconnect" href="wss://ws.derivws.com" crossorigin>
-<style>
-  /* ═══════════════════════════════════════════════════════════
-     TIER-1 PERFORMANCE CSS  v3
-     • Zero network fonts  → 100% OS system stack (0 ms latency)
-     • CSS variables        → single cascade resolution pass
-     • scaleX() fills       → compositor-only, never triggers layout
-     • opacity hover        → compositor-only, no repaint
-     • contain: strict      → each row is an isolated paint boundary
-     • will-change          → GPU layers pre-promoted at parse time
-     • No filter/brightness → always triggers raster, removed
-     • No box-shadow hover  → triggers repaint per frame, removed
-     • No text-shadow       → rasterises every text node, removed
-     • No width transition  → paint every interpolated frame, removed
-     • No scanline gradient → extra raster pass, removed
-     • No cursor: crosshair → compositor update per hover, removed
-     ═══════════════════════════════════════════════════════════ */
+<title>Live Forex Canvas (Elegant Digital-7 Split)</title>
 
+<link href="https://fonts.cdnfonts.com/css/digital-7-mono" rel="stylesheet">
+
+<style>
   :root {
-    --bg:           #00040f;
-    --bg-bar:       #000509;
-    --border:       rgba(80,160,255,0.12);
-    --border-seg:   rgba(80,160,255,0.06);
-    --txt-label:    #7eb8f7;
-    --txt-name:     rgba(255,255,255,0.92);
-    --txt-axis:     rgba(90,150,220,0.6);
-    --marker:       #00e5ff;
-    --marker-glow:  rgba(0,229,255,0.8);
-    /* System font stack — resolves from OS, zero network, zero parse */
-    --font:         'SF Mono','Cascadia Code','Fira Mono','Consolas','Liberation Mono',monospace;
+    --bg-main:      #000432; /* Uniform deep blue background */
+    --txt-main:     #ffffff; /* Pure white text */
+    --line:         #ffffff; /* White color for 1px borders */
+    --font:         'Digital-7 Mono', 'Courier New', monospace; 
   }
 
   *,*::before,*::after { margin:0; padding:0; box-sizing:border-box; }
 
+  html, body {
+    height: 100%; 
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    background: var(--bg-main);
+  }
+
   body {
-    background: var(--bg);
     font-family: var(--font);
-    color: #fff;
-    height: 100vh; width: 100vw;
-    display: flex; flex-direction: column;
-    padding: 1.5vh 1.5vw;
+    display: flex;
+    flex-direction: row; 
     overflow: hidden;
     -webkit-font-smoothing: antialiased;
-    text-rendering: optimizeSpeed;
-    /* Disable pointer interaction until data loads — eliminates hit-test cost */
-    pointer-events: none;
-  }
-  body.ready { pointer-events: auto; }
-
-  .stats-header { visibility:hidden; height:0; overflow:hidden; margin:0; }
-
-  .grid-container {
-    width:100%; flex-grow:1;
-    display:flex; flex-direction:column;
-    gap:1vh; position:relative;
-    padding-bottom:25px;
+    /* 1px white border around the entire outer edge */
+    border: 1px solid var(--line); 
   }
 
-  .day-row {
-    display:flex; align-items:center; width:100%; flex:1;
-    position:relative;
-    contain: layout style paint; /* strict but allows overflow for tooltips */
+  /* ── FULLSCREEN BUTTON ── */
+  #fs-btn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 100;
+    cursor: pointer;
+    font-family: 'Courier New', monospace; 
+    font-size: 1rem;
+    color: rgba(255, 255, 255, 0.4); /* Dimmed so it's not distracting */
+    transition: opacity 0.3s, color 0.3s;
   }
 
-  .day-label {
-    width:45px;
-    font-family: var(--font);
-    font-weight:700;
-    font-size: clamp(0.72rem, 0.95vw, 1rem);
-    color: var(--txt-label);
-    text-transform:uppercase;
-    letter-spacing:0.12em;
-    flex-shrink:0;
+  #fs-btn:hover {
+    color: rgba(255, 255, 255, 1);
   }
 
-  .bar-container {
-    flex-grow:1; height:100%; display:flex;
-    background: var(--bg-bar);
-    border: 1px solid var(--border);
-    border-radius:3px; overflow:hidden; position:relative;
+  /* Hides the button when fullscreen is active */
+  .hidden {
+    display: none !important;
   }
 
-  .segment {
-    height:100%; position:relative;
-    overflow:hidden;
-    border-right: 1px solid var(--border-seg);
-    flex-shrink:0;
-    /* No cursor: crosshair — saves compositor update on every hover */
-  }
-  .segment:last-child { border-right:none; }
-
-  .segment-fill {
-    position:absolute; top:0; left:0; height:100%; width:100%;
-    /* scaleX() lives entirely in the compositor — zero layout, zero paint */
-    transform: scaleX(0);
-    transform-origin: left center;
-    pointer-events:none;
-    will-change: transform;
-    /* No transition — instant set, zero interpolated paint frames */
-  }
-
-  .segment-content {
-    position:absolute; top:0; left:0; right:0; bottom:0;
-    display:flex; flex-direction:column;
-    justify-content:center; align-items:center;
-    pointer-events:none; z-index:2;
-    transform: translateZ(0); /* own compositing layer */
-  }
-
-  /* Hover: opacity only — stays in compositor, never repaints */
-  .segment:hover .segment-fill { opacity:0.78; }
-  .segment:hover { z-index:10; }
-
-  .segment-name {
-    font-size: clamp(0.78rem, 1.2vw, 1.15rem);
-    font-weight:800;
-    color: var(--txt-name);
-    white-space:nowrap; padding:0 3px;
-    letter-spacing:0.1em;
-  }
-
-  .segment-diff {
-    font-size: clamp(0.52rem, 0.78vw, 0.8rem);
-    font-weight:700;
-    letter-spacing:0.02em;
-    opacity:0.95;
-  }
-
-  /* ── Narrow segments: rotate text vertically so it always fits ── */
-  .segment[data-narrow="1"] .segment-content {
-    flex-direction: row;
-    gap: 3px;
-  }
-  .segment[data-narrow="1"] .segment-name {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    transform: rotate(180deg);
-    font-size: clamp(0.58rem, 0.85vw, 0.88rem);
-    letter-spacing: 0.05em;
-    padding: 2px 0;
-  }
-  .segment[data-narrow="1"] .segment-diff {
-    writing-mode: vertical-rl;
-    text-orientation: mixed;
-    transform: rotate(180deg);
-    font-size: clamp(0.48rem, 0.65vw, 0.7rem);
-    padding: 2px 0;
-  }
-
-  /* Tooltip — opacity transition is compositor-only */
-  .segment::after {
-    content: attr(data-info);
-    position:absolute; bottom:110%; left:50%;
-    transform: translateX(-50%) translateZ(0);
-    background: rgba(0,4,15,0.97);
-    color: var(--txt-label);
-    padding:5px 10px; border-radius:3px;
-    font-size:0.78rem; font-weight:600;
-    white-space:nowrap;
-    opacity:0; pointer-events:none;
-    transition: opacity 0.15s ease;
-    border: 1px solid rgba(0,229,255,0.25);
-    z-index:100;
-    will-change: opacity;
-  }
-  .segment:hover::after { opacity:1; }
-
-  /* X-axis */
-  .x-axis-row {
-    position:absolute; bottom:0; left:0; right:0;
-    display:flex; align-items:flex-start; height:15px;
-  }
-  .x-axis-labels { flex-grow:1; height:100%; position:relative; margin-left:45px; }
-  .x-axis-label {
-    position:absolute; transform:translateX(-50%);
-    font-size:0.58rem; color: var(--txt-axis);
-    font-weight:600; top:5px; letter-spacing:0.05em;
-  }
-  .x-axis-label::before {
-    content:'';
-    position:absolute; top:-5px; left:50%;
-    width:1px; height:4px;
-    background: rgba(0,229,255,0.25);
-  }
-
-  /* Time marker — GPU transitions only */
-  #time-marker {
-    position:absolute; width:2px;
-    background: var(--marker);
-    box-shadow: 0 0 10px 2px var(--marker-glow);
-    z-index:50; pointer-events:none;
-    transition: left 1s linear, top 0.3s ease, height 0.3s ease;
-    will-change: left, top, height;
-    transform: translateZ(0);
-  }
-  .time-marker-dot {
-    position:absolute; top:-4px; left:50%;
-    transform: translateX(-50%) translateZ(0);
-    width:9px; height:9px;
-    background: var(--marker); border-radius:50%;
-    box-shadow: 0 0 10px 3px var(--marker-glow);
-  }
-  .time-marker-tail {
-    position:absolute; bottom:-4px; left:50%;
-    transform: translateX(-50%) translateZ(0);
-    width:5px; height:5px;
-    background: rgba(0,229,255,0.5); border-radius:50%;
-  }
-  /* ── Floating clock on time marker ── */
-  #marker-clock {
-    position: absolute;
-    top: -112px;
-    left: 50%;
-    transform: translateX(-50%) translateZ(0);
-    background: rgba(0,4,15,0.95);
-    border: 1px solid var(--marker);
-    border-radius: 5px;
-    padding: 5px 10px;
-    font-family: var(--font);
-    color: var(--marker);
-    white-space: nowrap;
-    letter-spacing: 0.08em;
-    pointer-events: none;
-    box-shadow: 0 0 10px 2px rgba(0,229,255,0.4);
-    will-change: transform;
-    z-index: 60;
+  /* ── LEFT PANEL (TEXT) ── */
+  .info-panel {
+    flex: 1; 
     display: flex;
     flex-direction: column;
+    justify-content: center;
     align-items: center;
-    gap: 2px;
+    gap: 6vh; /* Increased gap for elegant breathing room */
+    padding: 20px;
+    /* 1px white splitting line down the middle */
+    border-right: 1px solid var(--line); 
   }
-  #marker-clock .clock-date {
-    font-size: clamp(0.9rem, 1.4vw, 1.3rem);
-    font-weight: 800;
-    opacity: 0.9;
-    letter-spacing: 0.1em;
+
+  /* ── RIGHT PANEL (CANVAS) ── */
+  .canvas-panel {
+    flex: 1; 
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
   }
-  #marker-clock .clock-day {
-    font-size: clamp(1rem, 1.6vw, 1.5rem);
-    font-weight: 900;
-    letter-spacing: 0.18em;
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* ── EXACT TYPOGRAPHY STYLING (Matching Screenshot Proportions) ── */
+  .info-panel div {
+    color: var(--txt-main); /* All text is pure white */
+    font-style: italic; /* Crucial: Slanted digital hardware look */
+    letter-spacing: 2px;
+    line-height: 1;
+  }
+
+  #live-clock {
+    font-size: clamp(4rem, 9vw, 10rem);
+  }
+
+  #live-date {
+    font-size: clamp(2.5rem, 6vw, 6.5rem);
+  }
+
+  #live-day {
+    font-size: clamp(2rem, 4.5vw, 5rem);
     text-transform: uppercase;
   }
-  #marker-clock .clock-time {
-    font-size: clamp(1.1rem, 1.8vw, 1.7rem);
-    font-weight: 900;
-    letter-spacing: 0.14em;
+
+  #live-session-name {
+    font-size: clamp(2.5rem, 6vw, 6.5rem);
+  }
+
+  /* Hidden to keep the interface purely minimalist like the screenshot */
+  #live-time-range {
+    display: none; 
+  }
+
+  /* Responsive stack for mobile (Portrait mode) */
+  @media (max-aspect-ratio: 3/4) {
+    body {
+      flex-direction: column;
+    }
+    .info-panel { 
+      border-right: none; 
+      border-bottom: 1px solid var(--line); 
+    }
   }
 </style>
 </head>
 <body>
 
-<div class="stats-header">
-  <div><div id="val-open"></div></div>
-  <div><div id="val-live"></div></div>
-  <div><div id="val-diff"></div></div>
+<div id="fs-btn">[ FULLSCREEN ]</div>
+
+<div class="info-panel" id="card">
+  <div id="live-clock">--:--:--</div>
+  <div id="live-date">--:--:----</div>
+  <div id="live-day">---</div>
+  <div id="live-session-name">LOADING...</div>
+  <div id="live-time-range"></div> </div>
+
+<div class="canvas-panel" id="canvas-container">
+  <canvas id="matrix-canvas"></canvas>
 </div>
 
-<div class="grid-container" id="grid"></div>
-
 <script>
-const API_TOKEN = 'TpVIBWpqet5X8AH';
-const APP_ID    = '1089';
-const WS_URL    = `wss://ws.derivws.com/websockets/v3?app_id=${APP_ID}`;
-const SYMBOL    = 'frxEURUSD';
+// ── FULLSCREEN LOGIC ──
+const fsBtn = document.getElementById('fs-btn');
+fsBtn.addEventListener('click', () => {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch(err => {
+      console.log(`Error attempting to enable fullscreen: ${err.message}`);
+    });
+  }
+});
 
+document.addEventListener('fullscreenchange', () => {
+  if (document.fullscreenElement) {
+    fsBtn.classList.add('hidden'); // Hide when in fullscreen
+  } else {
+    fsBtn.classList.remove('hidden'); // Show when exiting fullscreen
+  }
+});
+
+// ── FOREX CANVAS LOGIC ──
+const SYMBOL = 'frxEURUSD';
+const WS_URL = 'wss://ws.derivws.com/websockets/v3?app_id=1089';
+
+// Removed spaces around the '+' to match your image exactly
 const C = {
-  offline_ny: '#2a205a',
-  offline_wk: '#1a0000',
-  blank:      '#050818',
-  bull:       '#1cc658',
-  bear:       '#ff3333'
+  syd: '#1e3a8a', tok: '#065f46', syd_tok: '#0e7490', lon: '#991b1b', 
+  tok_lon: '#854d0e', ny: '#5b21b6', lon_ny: '#be123c', early: '#1e293b', 
+  off: '#0f172a', wknd: '#1a0505'  
 };
 
 function getCoreDay() {
   return [
-    { n: 'NY',       h: 2.5, c: C.blank,      isOff: false, time: '12:00 AM - 02:30 AM' },
-    { n: 'OFF',      h: 2.0, c: C.offline_ny, isOff: true,  time: '02:30 AM - 04:30 AM' },
-    { n: 'SYD',      h: 1.0, c: C.blank,      isOff: false, time: '04:30 AM - 05:30 AM' },
-    { n: 'SYD+TOK',  h: 7.0, c: C.blank,      isOff: false, time: '05:30 AM - 12:30 PM' },
-    { n: 'TOK',      h: 1.0, c: C.blank,      isOff: false, time: '12:30 PM - 01:30 PM' },
-    { n: 'TOK+LON',  h: 1.0, c: C.blank,      isOff: false, time: '01:30 PM - 02:30 PM' },
-    { n: 'LON',      h: 4.0, c: C.blank,      isOff: false, time: '02:30 PM - 06:30 PM' },
-    { n: 'LON+NY',   h: 4.0, c: C.blank,      isOff: false, time: '06:30 PM - 10:30 PM' },
-    { n: 'NY',       h: 1.5, c: C.blank,      isOff: false, time: '10:30 PM - 12:00 AM' }
+    { n: 'NEW YORK LATE',    h: 2.5, c: C.ny,      time: '12:00 AM - 02:30 AM' },
+    { n: 'OFFLINE',          h: 2.0, c: C.off,     time: '02:30 AM - 04:30 AM' },
+    { n: 'SYDNEY',           h: 1.0, c: C.syd,     time: '04:30 AM - 05:30 AM' },
+    { n: 'SYDNEY+TOKYO',     h: 7.0, c: C.syd_tok, time: '05:30 AM - 12:30 PM' },
+    { n: 'TOKYO',            h: 1.0, c: C.tok,     time: '12:30 PM - 01:30 PM' },
+    { n: 'TOKYO+LONDON',     h: 1.0, c: C.tok_lon, time: '01:30 PM - 02:30 PM' },
+    { n: 'LONDON',           h: 4.0, c: C.lon,     time: '02:30 PM - 06:30 PM' },
+    { n: 'LONDON+NEW YORK',  h: 4.0, c: C.lon_ny,  time: '06:30 PM - 10:30 PM' },
+    { n: 'NEW YORK',         h: 1.5, c: C.ny,      time: '10:30 PM - 12:00 AM' }
   ];
 }
 
 const monDay = getCoreDay();
-monDay[0] = { n: 'WKND',     h: 2.5, c: C.offline_wk, isOff: true,  time: '12:00 AM - 02:30 AM' };
-monDay[1] = { n: 'EARLY',    h: 2.0, c: C.blank,      isOff: false, time: '02:30 AM - 04:30 AM' };
-
-const satDay = [
-  { n: 'NY',      h: 2.5,  c: C.blank,      isOff: false, time: '12:00 AM - 02:30 AM' },
-  { n: 'WKND',    h: 21.5, c: C.offline_wk, isOff: true,  time: '02:30 AM - 12:00 AM' }
-];
-const sunDay = [
-  { n: 'WKND', h: 24.0, c: C.offline_wk, isOff: true, time: '12:00 AM - 12:00 AM' }
-];
+monDay[0] = { n: 'WEEKEND',      h: 2.5, c: C.wknd,  time: '12:00 AM - 02:30 AM' };
+monDay[1] = { n: 'EARLY VOLUME', h: 2.0, c: C.early, time: '02:30 AM - 04:30 AM' };
 
 const week = [
-  { name: 'MON', segments: monDay },
-  { name: 'TUE', segments: getCoreDay() },
-  { name: 'WED', segments: getCoreDay() },
-  { name: 'THU', segments: getCoreDay() },
-  { name: 'FRI', segments: getCoreDay() },
-  { name: 'SAT', segments: satDay },
-  { name: 'SUN', segments: sunDay }
+  { name: 'MONDAY',    segments: monDay },
+  { name: 'TUESDAY',   segments: getCoreDay() },
+  { name: 'WEDNESDAY', segments: getCoreDay() },
+  { name: 'THURSDAY',  segments: getCoreDay() },
+  { name: 'FRIDAY',    segments: getCoreDay() },
+  { name: 'SATURDAY',  segments: [{ n: 'NEW YORK LATE', h: 2.5, c: C.ny, time: '12:00 AM - 02:30 AM' }, { n: 'WEEKEND', h: 21.5, c: C.wknd, time: '02:30 AM - 12:00 AM' }] },
+  { name: 'SUNDAY',    segments: [{ n: 'WEEKEND', h: 24.0, c: C.wknd, time: '12:00 AM - 12:00 AM' }] }
 ];
 
 function getWeekStartEpochUTC() {
-  const now    = new Date();
+  const now = new Date();
   const utcNow = now.getTime();
   const istNow = utcNow + (5.5 * 3600 * 1000);
-  const dIst   = new Date(istNow);
-  let day  = dIst.getUTCDay();
+  const dIst = new Date(istNow);
+  let day = dIst.getUTCDay();
   let diff = day === 0 ? 6 : day - 1;
   let elapsedMs = (diff * 86400000) + (dIst.getUTCHours() * 3600000) + (dIst.getUTCMinutes() * 60000) + (dIst.getUTCSeconds() * 1000) + dIst.getUTCMilliseconds();
   let monIstMs = istNow - elapsedMs;
@@ -329,284 +214,228 @@ function getWeekStartEpochUTC() {
 }
 
 const weekStartEpoch = getWeekStartEpochUTC();
-let runEpoch   = weekStartEpoch;
-let flatSegments = [];
+const flatSegments = [];
+let accumulatedSecs = 0;
+
+const setupNow = new Date();
+const istSetupNow = new Date(setupNow.getTime() + (setupNow.getTimezoneOffset() * 60000) + (5.5 * 3600000));
+let currentDayOffset = istSetupNow.getDay();
+let diffToMonOffset = currentDayOffset === 0 ? 6 : currentDayOffset - 1;
+const monDate = new Date(istSetupNow);
+monDate.setDate(istSetupNow.getDate() - diffToMonOffset);
 
 week.forEach((day, dIdx) => {
-  day.segments.forEach((seg, sIdx) => {
-    seg.domId      = `seg-${dIdx}-${sIdx}`;
-    seg.startEpoch = runEpoch;
-    runEpoch      += Math.round(seg.h * 3600);
-    seg.endEpoch   = runEpoch;
-    flatSegments.push(seg);
+  const rowDate = new Date(monDate);
+  rowDate.setDate(monDate.getDate() + dIdx);
+  const dd = String(rowDate.getDate()).padStart(2, '0');
+  const mm = String(rowDate.getMonth() + 1).padStart(2, '0');
+  const yyyy = rowDate.getFullYear();
+  
+  day.segments.forEach(seg => {
+    const durSecs = seg.h * 3600;
+    flatSegments.push({
+      ...seg,
+      dayName: day.name,
+      dateStr: `${dd}-${mm}-${yyyy}`, // Dashes as requested
+      startS: accumulatedSecs,
+      endS: accumulatedSecs + durSecs,
+      durS: durSecs
+    });
+    accumulatedSecs += durSecs;
   });
 });
 
-// ── RENDER GRID ──────────────────────────────────────────────
-const grid = document.getElementById('grid');
-week.forEach((day) => {
-  const row   = document.createElement('div');
-  row.className = 'day-row';
+const elClock   = document.getElementById('live-clock');
+const elDate    = document.getElementById('live-date');
+const elDay     = document.getElementById('live-day');
+const elName    = document.getElementById('live-session-name');
+const canvasContainer = document.getElementById('canvas-container');
+const canvas    = document.getElementById('matrix-canvas');
+const ctx       = canvas.getContext('2d', { alpha: false }); 
 
-  const label = document.createElement('div');
-  label.className = 'day-label';
-  label.innerText = day.name;
+let currentActiveIndex = -1;
+let prevPrice = null;
+let histPrevPrice = null;
+let ws = null;
 
-  const bar = document.createElement('div');
-  bar.className = 'bar-container';
+let gridCols = 0;
+let spaceX = 0;
+let spaceY = 0;
+let dotRadius = 1;
 
-  day.segments.forEach((seg) => {
-    const segment = document.createElement('div');
-    segment.className = 'segment';
-    segment.id = seg.domId;
-    segment.style.width = `${(seg.h / 24) * 100}%`;
-    segment.style.backgroundColor = seg.isOff ? seg.c : C.blank;
-    segment.setAttribute('data-info', `${seg.n} (${seg.time})`);
-    // Mark segments ≤ 1.5 hrs as narrow → triggers vertical text CSS
-    if (seg.h <= 1.5) segment.setAttribute('data-narrow', '1');
+function updateClockAndCheckSession() {
+  const tNow = new Date();
+  const istTNow = new Date(tNow.getTime() + (tNow.getTimezoneOffset() * 60000) + (5.5 * 3600000));
+  
+  const hh = String(istTNow.getHours()).padStart(2, '0');
+  const mm = String(istTNow.getMinutes()).padStart(2, '0');
+  const ss = String(istTNow.getSeconds()).padStart(2, '0');
+  elClock.innerText = `${hh}:${mm}:${ss}`;
 
-    const fill = document.createElement('div');
-    fill.className = 'segment-fill';
-    fill.id = `fill-${seg.domId}`;
-    segment.appendChild(fill);
+  const currentEpoch = Math.floor(Date.now() / 1000);
+  const weekSecs = currentEpoch - weekStartEpoch;
 
-    const content  = document.createElement('div');
-    content.className = 'segment-content';
+  let activeIdx = flatSegments.findIndex(s => weekSecs >= s.startS && weekSecs < s.endS);
+  if (activeIdx === -1) activeIdx = 47; 
 
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'segment-name';
-    nameSpan.innerText = seg.n;
-    content.appendChild(nameSpan);
+  if (activeIdx !== currentActiveIndex) {
+    currentActiveIndex = activeIdx;
+    const seg = flatSegments[activeIdx];
 
-    const diffSpan = document.createElement('span');
-    diffSpan.className = 'segment-diff';
-    diffSpan.id = `diff-${seg.domId}`;
-    content.appendChild(diffSpan);
+    elDate.innerText = seg.dateStr;
+    elDay.innerText  = seg.dayName;
+    elName.innerText = seg.n;
 
-    segment.appendChild(content);
-    bar.appendChild(segment);
-  });
+    const cWidth = canvasContainer.clientWidth;
+    const cHeight = canvasContainer.clientHeight;
+    
+    const aspectRatio = cWidth / cHeight;
+    const optimalRows = Math.ceil(Math.sqrt(seg.durS / aspectRatio));
+    gridCols = Math.ceil(optimalRows * aspectRatio);
 
-  row.appendChild(label);
-  row.appendChild(bar);
-  grid.appendChild(row);
-});
+    canvas.width  = cWidth;
+    canvas.height = cHeight;
 
-// ── X-AXIS ───────────────────────────────────────────────────
-const xRow = document.createElement('div');
-xRow.className = 'x-axis-row';
-const xLabels = document.createElement('div');
-xLabels.className = 'x-axis-labels';
-for (let i = 0; i <= 24; i++) {
-  const lbl = document.createElement('div');
-  lbl.className = 'x-axis-label';
-  lbl.style.left = `${(i / 24) * 100}%`;
-  lbl.innerText  = i === 24 ? '0' : `${i}`;
-  xLabels.appendChild(lbl);
-}
-xRow.appendChild(xLabels);
-grid.appendChild(xRow);
+    spaceX = canvas.width / gridCols;
+    spaceY = canvas.height / optimalRows;
+    dotRadius = Math.max(Math.min(spaceX, spaceY) * 0.35, 1.5);
 
-// ── TIME MARKER ──────────────────────────────────────────────
-const marker = document.createElement('div');
-marker.id = 'time-marker';
-marker.innerHTML = '<div class="time-marker-dot"></div><div id="marker-clock"><span class="clock-date">--/--/----</span><span class="clock-day">---</span><span class="clock-time">00:00:00</span></div><div class="time-marker-tail"></div>';
-grid.appendChild(marker);
+    // Deep blue background for canvas
+    ctx.fillStyle = '#000432';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-// Cache row elements once — never query DOM in hot loop
-const rowEls = Array.from(document.querySelectorAll('.day-row'));
+    // Pre-Draw all unlit LEDs exactly matching the screenshot's empty grid
+    const totalDotsToFillScreen = gridCols * optimalRows;
 
-// rAF-based time marker — syncs to browser render cycle, never drifts
-const clockEl = document.getElementById('marker-clock');
-let rafMarker = null;
-function scheduleMarker() {
-  if (rafMarker) return;
-  rafMarker = requestAnimationFrame(() => {
-    rafMarker = null;
-    const now    = new Date();
-    const istNow = new Date(now.getTime() + (now.getTimezoneOffset() * 60000) + (5.5 * 3600000));
-    let day = istNow.getDay();
-    day = (day === 0) ? 6 : day - 1;
-    const secs = (istNow.getHours() * 3600) + (istNow.getMinutes() * 60) + istNow.getSeconds();
-    const pct  = (secs / 86400) * 100;
-    if (rowEls[day]) {
-      marker.style.left   = `calc(45px + (100% - 45px) * ${pct / 100})`;
-      marker.style.top    = `${rowEls[day].offsetTop}px`;
-      marker.style.height = `${rowEls[day].offsetHeight}px`;
+    ctx.fillStyle = '#333333'; // Solid dark grey for unlit LEDs
+    ctx.beginPath();
+    for (let i = 0; i < totalDotsToFillScreen; i++) {
+      const x = (i % gridCols) * spaceX + (spaceX / 2);
+      const y = Math.floor(i / gridCols) * spaceY + (spaceY / 2);
+      ctx.moveTo(x, y);
+      ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
     }
-    // Live clock — Day, DD/MM/YYYY, HH:MM:SS in IST
-    const DAYS = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
-    const hh  = String(istNow.getHours()).padStart(2,'0');
-    const mm  = String(istNow.getMinutes()).padStart(2,'0');
-    const ss  = String(istNow.getSeconds()).padStart(2,'0');
-    const dd  = String(istNow.getDate()).padStart(2,'0');
-    const mo  = String(istNow.getMonth()+1).padStart(2,'0');
-    const yr  = istNow.getFullYear();
-    const dayName = DAYS[istNow.getDay()];
-    clockEl.querySelector('.clock-day').innerText  = dayName;
-    clockEl.querySelector('.clock-date').innerText = `${dd}/${mo}/${yr}`;
-    clockEl.querySelector('.clock-time').innerText = `${hh}:${mm}:${ss}`;
-  });
-}
-setInterval(scheduleMarker, 1000);
-scheduleMarker();
+    ctx.fill();
 
-// ════════════════════════════════════════════════════════════
-// SESSION-CLOSE COMPARISON ENGINE
-// Each session coloured by comparing its close to the PREVIOUS
-// session's close (or week open for the very first session).
-//   GREEN → closed ABOVE prev session's close
-//   RED   → closed BELOW prev session's close
-// Pip label = move from prevClose to thisClose.
-// Live/current segment updates every tick.
-// Past sessions lock close on first tick after endEpoch.
-// ════════════════════════════════════════════════════════════
-
-let ws               = null;
-let weekOpenPrice    = null;
-let currentLiveEpoch = null;
-const sessionClose   = {};
-
-// ── PRE-CACHE every DOM reference at startup ─────────────────
-// getElementById in a hot loop (every tick × every segment) is
-// the single biggest avoidable DOM cost. Cache once, reuse forever.
-const domCache = {};   // domId → { segEl, fillEl, textEl }
-flatSegments.forEach(seg => {
-  if (seg.isOff) return;
-  domCache[seg.domId] = {
-    segEl:  document.getElementById(seg.domId),
-    fillEl: document.getElementById(`fill-${seg.domId}`),
-    textEl: document.getElementById(`diff-${seg.domId}`)
-  };
-});
-// Cache hidden stats elements too
-const elOpen = document.getElementById('val-open');
-const elLive = document.getElementById('val-live');
-const elDiff = document.getElementById('val-diff');
-
-function getPrevClose(targetSeg) {
-  let prev = weekOpenPrice || 0;
-  for (let i = 0; i < flatSegments.length; i++) {
-    const s = flatSegments[i];
-    if (s.domId === targetSeg.domId) break;
-    if (!s.isOff && sessionClose[s.domId] !== undefined) {
-      prev = sessionClose[s.domId];
-    }
+    subscribeToSession(seg);
   }
-  return prev;
 }
 
-// ── PENDING PAINT STATE ──────────────────────────────────────
-// Incoming ticks write here; a single rAF flushes to DOM once
-// per frame — no matter how many ticks arrive between frames.
-let pendingPrice = null;
-let pendingEpoch = null;
-let rafPaint     = null;
-
-function flushPaint() {
-  rafPaint = null;
-  const livePrice = pendingPrice;
-  if (!weekOpenPrice || livePrice === null) return;
-
-  // Stats
-  const wPips = (livePrice - weekOpenPrice) * 10000;
-  const wBull = wPips >= 0;
-  elOpen.innerText   = weekOpenPrice.toFixed(5);
-  elLive.innerText   = livePrice.toFixed(5);
-  elDiff.innerText   = `${wBull ? '+' : ''}${wPips.toFixed(1)}${wBull ? '▲' : '▼'}`;
-  elDiff.style.color = wBull ? C.bull : C.bear;
-
-  flatSegments.forEach(seg => {
-    if (seg.isOff) return;
-    const { segEl, fillEl, textEl } = domCache[seg.domId];
-
-    // FUTURE
-    if (currentLiveEpoch < seg.startEpoch) {
-      fillEl.style.transform       = 'scaleX(0)';
-      textEl.innerText             = '';
-      segEl.style.backgroundColor  = C.blank;
-      return;
+function drawDot(index, price, pPrice) {
+    let color = '#555555'; // Slightly lighter grey for "no change" ticks
+    if (pPrice !== null) {
+        if (price > pPrice) color = '#1cc658'; // Green
+        else if (price < pPrice) color = '#ff3333'; // Red
     }
 
-    const prevClose = getPrevClose(seg);
-    let thisClose, fillScale;
+    const x = (index % gridCols) * spaceX + (spaceX / 2);
+    const y = Math.floor(index / gridCols) * spaceY + (spaceY / 2);
 
-    if (currentLiveEpoch >= seg.endEpoch) {
-      // PAST — lock close once
-      if (sessionClose[seg.domId] === undefined) {
-        sessionClose[seg.domId] = livePrice;
-      }
-      thisClose = sessionClose[seg.domId];
-      fillScale = 1;
-    } else {
-      // CURRENT — running
-      thisClose = livePrice;
-      sessionClose[seg.domId] = livePrice;
-      const dur = seg.endEpoch - seg.startEpoch;
-      const ela = currentLiveEpoch - seg.startEpoch;
-      fillScale = Math.min(1, Math.max(0, ela / dur));
-    }
-
-    const isBull = thisClose >= prevClose;
-    const color  = isBull ? C.bull : C.bear;
-    const pips   = (thisClose - prevClose) * 10000;
-    const sign   = pips >= 0 ? '+' : '';
-    const lbl    = `${sign}${pips.toFixed(1)}${isBull ? '▲' : '▼'}`;
-
-    // scaleX — compositor only, no layout, no paint
-    fillEl.style.backgroundColor = color;
-    fillEl.style.transform       = `scaleX(${fillScale})`;
-    textEl.innerText             = lbl;
-    textEl.style.color           = '#ffffff';
-    segEl.style.backgroundColor  = C.blank;
-  });
+    ctx.beginPath();
+    ctx.arc(x, y, dotRadius, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
 }
 
-function paintAll(livePrice) {
-  if (!weekOpenPrice) return;
-  pendingPrice = livePrice;
-  // Batch: schedule one rAF flush; extra ticks before frame are free
-  if (!rafPaint) rafPaint = requestAnimationFrame(flushPaint);
-}
+function subscribeToSession(seg) {
+  if (ws) {
+    ws.onclose = null; 
+    ws.close();
+  }
 
-function connect() {
-  if (ws) ws.close();
   ws = new WebSocket(WS_URL);
 
-  ws.onopen = () => ws.send(JSON.stringify({ authorize: API_TOKEN }));
+  const absoluteStartEpoch = weekStartEpoch + seg.startS;
+  const absoluteEndEpoch = weekStartEpoch + seg.endS;
+  
+  let currentFetchEnd = 'latest'; 
+  histPrevPrice = null; 
+  prevPrice = null;
+
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
+    fetchHistoryChunk();
+  };
+
+  function fetchHistoryChunk() {
+    ws.send(JSON.stringify({
+      ticks_history: SYMBOL,
+      end: currentFetchEnd,
+      count: 5000, 
+      style: 'ticks'
+    }));
+  }
 
   ws.onmessage = (evt) => {
     const msg = JSON.parse(evt.data);
+    
+    if (msg.msg_type === 'history' && msg.history) {
+      const times = msg.history.times;
+      const prices = msg.history.prices;
+      
+      if (prices.length > 0) {
+        if (histPrevPrice === null) histPrevPrice = prices[0];
+        
+        for (let i = 0; i < prices.length; i++) {
+          const epoch = times[i];
+          const price = prices[i];
+          
+          if (epoch < absoluteStartEpoch || epoch >= absoluteEndEpoch) continue;
 
-    if (msg.msg_type === 'authorize' && !msg.error) {
-      ws.send(JSON.stringify({ ticks: SYMBOL, subscribe: 1 }));
-      ws.send(JSON.stringify({
-        ticks_history: SYMBOL,
-        start: weekStartEpoch,
-        end:   weekStartEpoch + (8 * 3600),
-        style: 'candles',
-        granularity: 3600
-      }));
+          const weekSecs = epoch - weekStartEpoch;
+          const secOffset = weekSecs - seg.startS;
+
+          drawDot(secOffset, price, histPrevPrice);
+          histPrevPrice = price;
+        }
+
+        if (currentFetchEnd === 'latest') {
+             prevPrice = prices[prices.length - 1]; 
+        }
+
+        if (times.length > 1 && times[0] > absoluteStartEpoch) {
+          currentFetchEnd = times[0]; 
+          fetchHistoryChunk(); 
+        }
+      }
     }
-
-    if (msg.msg_type === 'candles' && msg.candles && msg.candles.length > 0) {
-      weekOpenPrice = msg.candles[0].open;
-    }
-
+    
     if (msg.msg_type === 'tick' && msg.tick) {
-      currentLiveEpoch = msg.tick.epoch;
-      const livePrice  = msg.tick.quote;
-      if (!weekOpenPrice) weekOpenPrice = livePrice;
-      // Enable interaction on first data — removes pointer-events:none from body
-      document.body.classList.add('ready');
-      paintAll(livePrice);
+      const livePrice = msg.tick.quote;
+      const tickEpoch = msg.tick.epoch;
+      
+      if (!prevPrice) prevPrice = livePrice;
+
+      const weekSecs = tickEpoch - weekStartEpoch;
+      const secOffset = weekSecs - seg.startS;
+
+      if (secOffset >= 0 && secOffset < seg.durS) {
+        drawDot(secOffset, livePrice, prevPrice);
+      }
+      prevPrice = livePrice;
     }
   };
 
-  ws.onclose = () => setTimeout(connect, 4000);
+  ws.onclose = () => {
+    setTimeout(() => {
+      if (flatSegments[currentActiveIndex] === seg) {
+        subscribeToSession(seg);
+      }
+    }, 3000);
+  };
 }
 
-connect();
+let resizeTimeout;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    currentActiveIndex = -1; 
+    updateClockAndCheckSession();
+  }, 500); 
+});
+
+setInterval(updateClockAndCheckSession, 1000);
+updateClockAndCheckSession(); 
 </script>
 </body>
 </html>
